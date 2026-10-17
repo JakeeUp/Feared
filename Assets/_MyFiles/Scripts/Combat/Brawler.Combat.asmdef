@@ -1,0 +1,14 @@
+{
+    "name": "Brawler.Combat",
+    "rootNamespace": "Brawler.Combat",
+    "references": ["Brawler.Core"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

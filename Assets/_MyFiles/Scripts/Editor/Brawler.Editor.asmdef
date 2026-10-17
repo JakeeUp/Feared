@@ -1,0 +1,14 @@
+{
+    "name": "Brawler.Editor",
+    "rootNamespace": "Brawler.Editor",
+    "references": ["Brawler.Core", "Brawler.Combat", "Brawler.Player", "Brawler.Presentation", "Unity.InputSystem"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
