@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 52fd3bddf8df99f479edb2524d36aa6a, type: 3}
+  m_Name: Attack_Finisher
+  m_EditorClassIdentifier: Brawler.Combat::Brawler.Combat.AttackData
+  _damage: 18
+  _knockback: {x: 9, y: 2}
+  _hitstunFrames: 28
+  _frames:
+    _startup: 8
+    _active: 4
+    _recovery: 22
+    _cancelWindowStart: 20
+    _cancelWindowEnd: 34
+  _hitboxSize: {x: 1.6, y: 1.2}
+  _hitboxOffset: {x: 0.9, y: 1}
+  _lungeSpeed: 4
+  _hitStopFrames: 8
+  _screenShake: 0.45
