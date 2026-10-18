@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using UnityEngine;
 
 namespace Brawler.Presentation
@@ -43,6 +40,12 @@ namespace Brawler.Presentation
         /// <summary>SmoothDamp velocity (ref parameter); reset on snap.</summary>
         private Vector3 _followVelocity;
 
+        /// <summary>SmoothDamp velocity for the (lazier) vertical follow.</summary>
+        private float _followVelocityY;
+
+        /// <summary>Vertical follow smooth time = FollowSmoothTime × this.</summary>
+        private const float VerticalLag = 3f;
+
         // ============ Properties ============
 
         /// <summary>The rig camera (for systems that need projection, e.g. future screen-space UI).</summary>
@@ -60,17 +63,36 @@ namespace Brawler.Presentation
 
         private void Start()
         {
-            // TODO: snap to the target on the first frame so the camera doesn't swoop in from wherever it was placed.
+            SnapToTarget();
         }
 
         private void LateUpdate()
         {
-            // TODO: smooth follow of target + offset. SmoothDamp works; frame-rate independent exponential decay
-            // (1 - exp(-k * dt)) is the other common option - Freya Holmer's "Lerp smoothing is broken" talk explains why a
-            // plain Lerp(a, b, t) per frame isn't it.
-            // - Scaled deltaTime, so the camera holds still during hitstop (that sells the impact).
-            // - Only move this transform. Angle lives on the pivot and shake on ShakeRoot, so the three never fight.
-            // - Later: softer Y follow and arena bounds clamping.
+            if (_target == null)
+            {
+                return;
+            }
+
+            Vector3 goal = GetGoalPosition();
+            float smoothTime = _settings != null ? _settings.FollowSmoothTime : 0f;
+            if (smoothTime <= 0f)
+            {
+                transform.position = goal;
+                return;
+            }
+
+            // Scaled time: the camera holds still during hitstop.
+            float dt = Time.deltaTime;
+            if (dt <= 0f)
+            {
+                return;
+            }
+
+            // Y follows lazier than X/Z so jumps don't bob the whole screen.
+            Vector3 current = transform.position;
+            Vector3 planar = Vector3.SmoothDamp(new Vector3(current.x, 0f, current.z), new Vector3(goal.x, 0f, goal.z), ref _followVelocity, smoothTime, Mathf.Infinity, dt);
+            float y = Mathf.SmoothDamp(current.y, goal.y, ref _followVelocityY, smoothTime * VerticalLag, Mathf.Infinity, dt);
+            transform.position = new Vector3(planar.x, y, planar.z);
         }
 
         private void OnValidate()
@@ -84,21 +106,46 @@ namespace Brawler.Presentation
         /// <summary>Teleports the rig to the target (plus offset) and clears follow velocity. Use on spawn / respawn / scene load.</summary>
         public void SnapToTarget()
         {
-            // TODO: jump straight to target + offset and zero the SmoothDamp velocity.
+            if (_target == null)
+            {
+                return;
+            }
+
+            transform.position = GetGoalPosition();
+            _followVelocity = Vector3.zero;
+            _followVelocityY = 0f;
         }
 
         /// <summary>
         /// Applies <see cref="CameraRigSettings"/> to the hierarchy: pivot rotation (pitch, yaw), camera local position
         /// (0, 0, -Distance) and field of view. Called from Awake and OnValidate.
         /// </summary>
+        [ContextMenu("Apply Settings")]
         public void ApplySettings()
         {
-            // TODO: push the settings onto the rig - pitch/yaw on the pivot, distance as the camera's local -Z, FOV.
-            // - Leave ShakeRoot at local zero, ScreenShake owns it.
-            // - This also runs from OnValidate, so null-check everything and don't snap the rig from here.
-            // - Editing the settings asset itself won't call this - a [ContextMenu] "Apply Settings" would be handy.
-            // - Input isn't camera-relative yet, so keep yaw at 0 until it is.
-            // Narrow FOV + far distance is what gives the flatter, almost-orthographic HD-2D look.
+            if (_settings == null)
+            {
+                return;
+            }
+
+            if (_pivot != null)
+            {
+                _pivot.localRotation = Quaternion.Euler(_settings.Pitch, _settings.Yaw, 0f);
+            }
+
+            if (_camera != null)
+            {
+                _camera.transform.localPosition = new Vector3(0f, 0f, -_settings.Distance);
+                _camera.fieldOfView = _settings.FieldOfView;
+            }
+        }
+
+        // ============ Helpers ============
+
+        private Vector3 GetGoalPosition()
+        {
+            Vector3 offset = _settings != null ? _settings.TargetOffset : Vector3.zero;
+            return _target.position + offset;
         }
     }
 }
