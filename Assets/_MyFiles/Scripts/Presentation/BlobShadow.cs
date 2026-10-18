@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using UnityEngine;
 
 namespace Brawler.Presentation
@@ -46,6 +43,9 @@ namespace Brawler.Presentation
         /// <summary>Last visibility written to the shadow (avoids SetActive every frame).</summary>
         private bool _isShadowVisible = true;
 
+        /// <summary>The quad's renderer, cached on first toggle.</summary>
+        private Renderer _shadowRenderer;
+
         // ============ Properties ============
 
         /// <summary>True while the shadow quad is shown (ground found within <see cref="_maxDistance"/>).</summary>
@@ -55,16 +55,25 @@ namespace Brawler.Presentation
 
         private void LateUpdate()
         {
-            // TODO: raycast down from a bit above the feet and put the shadow on the floor.
-            // - Ignore triggers (hurtboxes). Hit -> place at hit point + small offset, keep it flat, shrink with height
-            //   (lerp toward _minScaleAtMaxDistance). No hit -> hide it.
-            // - The ray starts inside our own capsule; raycasts don't report a collider the origin is inside, so we never
-            //   shadow onto ourselves.
-            // - Known issue: it can land on another character's capsule (standing over a dummy). Fix later with an Actor layer
-            //   excluded from _groundLayers.
-            // - Optional: fade alpha with height via a cached MaterialPropertyBlock.
-            // Blob shadows are mostly there to show where a character is on the depth axis - without them it's really hard
-            // to tell who's in line with who in a 2.5D brawler.
+            if (_shadowTransform == null)
+            {
+                return;
+            }
+
+            // Starts inside our own capsule, which raycasts never report, so we don't shadow onto ourselves.
+            Vector3 origin = transform.position + Vector3.up * RayStartHeight;
+            if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, _maxDistance + RayStartHeight, _groundLayers, QueryTriggerInteraction.Ignore))
+            {
+                SetVisible(false);
+                return;
+            }
+
+            SetVisible(true);
+            _shadowTransform.position = hit.point + Vector3.up * _groundOffset;
+
+            float height01 = Mathf.Clamp01((hit.distance - RayStartHeight) / _maxDistance);
+            float scale = _baseScale * Mathf.Lerp(1f, _minScaleAtMaxDistance, height01);
+            _shadowTransform.localScale = new Vector3(scale, scale, scale);
         }
 
         // ============ Helpers ============
@@ -73,7 +82,22 @@ namespace Brawler.Presentation
         /// <param name="visible">Desired visibility.</param>
         private void SetVisible(bool visible)
         {
-            // TODO: only toggle on change. Toggling the MeshRenderer is cheaper than SetActive.
+            if (visible == _isShadowVisible)
+            {
+                return;
+            }
+
+            if (_shadowRenderer == null)
+            {
+                _shadowRenderer = _shadowTransform.GetComponent<Renderer>();
+            }
+
+            if (_shadowRenderer != null)
+            {
+                _shadowRenderer.enabled = visible;
+            }
+
+            _isShadowVisible = visible;
         }
     }
 }
