@@ -1,65 +1,149 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using Brawler.Core;
 using UnityEngine;
 
 namespace Brawler.Player
 {
     /// <summary>
-    /// Fixed-length burst along input direction (or facing when neutral) with i-frames in
-    /// [DashIFrameStart, DashIFrameEnd). Timeline on a private <see cref="FrameClock"/>.
+    /// Evasive burst along input direction (or facing when neutral). Two flavours chosen at Enter:
+    /// on the ground it is a <b>dodge roll</b> (RollFrames long, eases out, i-frames in [RollIFrameStart, RollIFrameEnd));
+    /// in the air (or off a wall) it is a <b>dash</b> (DashFrames long, constant speed, holds altitude, i-frames in
+    /// [DashIFrameStart, DashIFrameEnd)). Timeline on a private <see cref="FrameClock"/>.
     /// </summary>
     /// <remarks>
-    /// Transitions (FixedTick, after advancing — §4.1): when frame &gt;= DashFrames: 1. consume Attack -&gt; Attack
-    /// (ComboTracker.Begin; dash-attack buffering); 2. else Move if input, else Idle.
+    /// Transitions (FixedTick, after advancing — §4.1): when the timeline ends: 1. consume Attack -&gt; Attack
+    /// (ComboTracker.Begin; dash-attack buffering); 2. else Air / Move / Idle.
     /// Hitstun: external, only reachable outside i-frames (Hitbox skips invulnerable hurtboxes).
     /// </remarks>
     public sealed class DashState : IState<PlayerContext>
     {
+        // ============ Constants ============
+
+        /// <summary>Minimum |input X| that turns the player (matches MoveState).</summary>
+        private const float FacingThreshold = 0.1f;
+
         // ============ State ============
 
         private readonly FrameClock _clock = new FrameClock();
         private Vector3 _direction; // unit planar direction, locked at Enter
+
+        // ============ Properties (read by presentation) ============
+
+        /// <summary>True when this activation is a ground roll rather than an air/wall dash.</summary>
+        public bool IsRoll { get; private set; }
+
+        /// <summary>Timeline progress, 0 at Enter to 1 at the end (drives the roll animation).</summary>
+        public float Progress { get; private set; }
 
         // ============ IState ============
 
         /// <inheritdoc />
         public void Enter(PlayerContext context)
         {
-            // TODO: pick a direction (stick if held, otherwise facing), update facing only if there's horizontal input, reset
-            // the clock, process frame 0 so i-frames are on immediately, and set velocity to DashSpeed.
-            // Normalizing after the depth scaling makes diagonal dashes full speed; not normalizing keeps depth dashes shorter.
-            // Try both, it's a feel call.
+            bool fromWall = ReferenceEquals(context.Machine.PreviousState, context.States.WallSlide);
+            Vector3 input = context.GetMoveInputWorld();
+            if (fromWall)
+            {
+                // Off a wall the stick is held into it, so always dash away.
+                _direction = new Vector3(-context.WallSide, 0f, 0f);
+                context.FacingSign = -context.WallSide;
+            }
+            else if (input.sqrMagnitude > 0f)
+            {
+                // Normalized after depth scaling: every direction moves at full speed.
+                _direction = input.normalized;
+                if (Mathf.Abs(input.x) > FacingThreshold)
+                {
+                    context.FacingSign = input.x > 0f ? 1 : -1;
+                }
+            }
+            else
+            {
+                _direction = new Vector3(context.FacingSign, 0f, 0f);
+            }
+
+            IsRoll = context.IsGrounded && !fromWall;
+            Progress = 0f;
+            _clock.Reset();
+            ProcessFrame(context, 0);
+            context.Velocity = _direction * CurrentSpeed(context);
+
+            // Air dashes hold altitude for their whole length.
+            if (!IsRoll)
+            {
+                context.VerticalVelocity = 0f;
+            }
         }
 
         /// <inheritdoc />
         public void Tick(PlayerContext context, float deltaTime)
         {
-            // TODO: hold dash velocity and move. Constant speed is fine to start; easing out over the last few frames usually
-            // feels better. No voluntary exits from here - the dash commits for its full length.
+            // Committed for its full length: no voluntary exits.
+            context.Velocity = _direction * CurrentSpeed(context);
+            context.Move(context.Velocity, deltaTime, IsRoll ? -1f : 0f);
         }
 
         /// <inheritdoc />
         public void FixedTick(PlayerContext context, float fixedDeltaTime)
         {
-            // TODO: advance the clock, process every frame we stepped over (i-frames), and once DashFrames is reached:
-            // buffered Attack -> start a combo, otherwise Move/Idle depending on input.
-            // Might want to drop velocity to around MoveSpeed on the way out so the run doesn't start at dash speed.
+            int steps = _clock.Advance(fixedDeltaTime);
+            for (int frame = _clock.Frame - steps + 1; frame <= _clock.Frame; frame++)
+            {
+                ProcessFrame(context, frame);
+            }
+
+            int length = Length(context);
+            Progress = Mathf.Clamp01(_clock.Frame / (float)length);
+            if (_clock.Frame < length)
+            {
+                return;
+            }
+
+            // Leave at run speed so the next state doesn't start at dash speed.
+            context.Velocity = Vector3.ClampMagnitude(context.Velocity, context.Movement.MoveSpeed);
+
+            if (context.ComboTracker.ComboLength > 0 && context.Buffer.TryConsume(BufferedCommand.Attack, context.Time))
+            {
+                context.ComboTracker.Begin();
+                context.Machine.ChangeState(context.States.Attack);
+                return;
+            }
+
+            context.ChangeToLocomotion();
         }
 
         /// <inheritdoc />
         public void Exit(PlayerContext context)
         {
-            // TODO: always clear i-frames here. A dash that gets interrupted must never leave the player invulnerable.
+            // An interrupted dash must never leave the player invulnerable.
+            context.IsInvulnerable = false;
         }
 
         // ============ Helpers ============
 
+        private int Length(PlayerContext context)
+        {
+            return Mathf.Max(1, IsRoll ? context.Movement.RollFrames : context.Movement.DashFrames);
+        }
+
+        /// <summary>Dash: constant. Roll: full speed, then eases down over the last part of the roll.</summary>
+        private float CurrentSpeed(PlayerContext context)
+        {
+            PlayerMovementSettings movement = context.Movement;
+            if (!IsRoll)
+            {
+                return movement.DashSpeed;
+            }
+
+            float easeOut = Mathf.InverseLerp(movement.RollEaseStart, 1f, Progress);
+            return movement.RollSpeed * Mathf.Lerp(1f, movement.RollEndSpeedFraction, easeOut);
+        }
+
         private void ProcessFrame(PlayerContext context, int frame)
         {
-            // TODO: invulnerable while frame is in [IFrameStart, IFrameEnd). Write it every processed frame so it switches off
-            // exactly on time. DMC/Souls-style dodges live and die by this window being tight and predictable.
+            PlayerMovementSettings movement = context.Movement;
+            context.IsInvulnerable = IsRoll
+                ? frame >= movement.RollIFrameStart && frame < movement.RollIFrameEnd
+                : frame >= movement.DashIFrameStart && frame < movement.DashIFrameEnd;
         }
     }
 }
