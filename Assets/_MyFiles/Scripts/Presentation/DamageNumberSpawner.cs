@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using System;
 using Brawler.Combat;
 using Brawler.Core;
@@ -97,11 +94,18 @@ namespace Brawler.Presentation
         /// <param name="worldPosition">Hit point in world space (spawn offset and random spread are added).</param>
         public void Spawn(int amount, Vector3 worldPosition)
         {
-            // TODO: get a number from the pool and play it at the hit point + spawn offset, facing the camera.
-            // - Spread along the camera's right axis rather than world X so it reads the same at any yaw.
-            // - Use UnityEngine.Random explicitly, `using System;` makes plain Random ambiguous.
-            // - Skip amount <= 0 for now.
-            // Pool max size only limits what's kept on Release; Get always succeeds.
+            if (_pool == null || amount <= 0)
+            {
+                return;
+            }
+
+            // Spread along camera right so it reads the same at any yaw.
+            Vector3 right = _cameraTransform != null ? _cameraTransform.right : Vector3.right;
+            Quaternion rotation = _cameraTransform != null ? _cameraTransform.rotation : Quaternion.identity;
+            float spread = UnityEngine.Random.Range(-_settings.DamageNumberSpread, _settings.DamageNumberSpread);
+            Vector3 position = worldPosition + _settings.DamageNumberSpawnOffset + right * spread;
+
+            _pool.Get().Play(amount, position, rotation);
         }
 
         // ============ Pool Callbacks (cached method groups) ============
@@ -120,14 +124,14 @@ namespace Brawler.Presentation
         /// <param name="number">Instance leaving the pool.</param>
         private void OnGetNumber(DamageNumber number)
         {
-            // TODO: activate it. Play() positions it in the same frame so nothing draws in the old spot.
+            number.gameObject.SetActive(true);
         }
 
         /// <summary>Pool release: deactivate.</summary>
         /// <param name="number">Instance returning to the pool.</param>
         private void OnReleaseNumber(DamageNumber number)
         {
-            // TODO: deactivate it. collectionCheck throws on a double release in the editor - DamageNumber's flag guards that.
+            number.gameObject.SetActive(false);
         }
 
         /// <summary>Pool destroy: called when the pool is over maxSize or cleared.</summary>
@@ -147,8 +151,7 @@ namespace Brawler.Presentation
         /// <param name="evt">The hit.</param>
         private void OnHit(HitEvent evt)
         {
-            // TODO: spawn a number for the hit. HitEvent can fire right before hitstop freezes time - fine, numbers run on
-            // unscaled time.
+            Spawn(evt.Damage.Amount, evt.Damage.HitPoint);
         }
     }
 }

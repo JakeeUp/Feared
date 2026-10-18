@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using UnityEngine;
 using UnityEngine.Pool;
 
@@ -13,6 +10,17 @@ namespace Brawler.Presentation
     [DisallowMultipleComponent]
     public sealed class DamageNumber : MonoBehaviour
     {
+        // ============ Constants ============
+
+        /// <summary>Start-of-life scale multiplier for the pop-in punch.</summary>
+        private const float PunchScale = 1.4f;
+
+        /// <summary>Fraction of the lifetime the punch takes to settle.</summary>
+        private const float PunchPortion = 0.15f;
+
+        /// <summary>Fraction of the lifetime (at the end) spent fading out.</summary>
+        private const float FadePortion = 0.4f;
+
         // ============ Serialized Fields ============
 
         [Header("References")]
@@ -39,6 +47,9 @@ namespace Brawler.Presentation
         /// <summary>Guard: true once released for the current play, so Release is called exactly once.</summary>
         private bool _isReleased = true;
 
+        /// <summary>Prefab scale, captured in Awake; the punch multiplies it.</summary>
+        private Vector3 _baseScale = Vector3.one;
+
         // ============ Properties ============
 
         /// <summary>True while the number is animating (between <see cref="Play"/> and its release).</summary>
@@ -64,19 +75,47 @@ namespace Brawler.Presentation
             {
                 _baseColor = _text.color;
             }
+
+            _baseScale = transform.localScale;
         }
 
         private void Update()
         {
-            // TODO: animate on unscaled time (numbers should still pop during hitstop), then release once.
-            // Ease-out rise, fade over the last ~40%, maybe a quick scale punch at the start.
-            // TextMesh.color writes vertex colors so there's no material instance per number.
+            if (_isReleased || _settings == null)
+            {
+                return;
+            }
+
+            // Unscaled so numbers still pop during hitstop.
+            _elapsed += Time.unscaledDeltaTime;
+            float lifetime = Mathf.Max(0.01f, _settings.DamageNumberLifetime);
+            float t = Mathf.Clamp01(_elapsed / lifetime);
+
+            float easeOut = 1f - (1f - t) * (1f - t);
+            transform.position = _startPosition + Vector3.up * (_settings.DamageNumberRise * easeOut);
+
+            // Quick scale punch over the first 15%.
+            float punch = t < PunchPortion ? Mathf.Lerp(PunchScale, 1f, t / PunchPortion) : 1f;
+            transform.localScale = _baseScale * punch;
+
+            // Fade over the last 40%. TextMesh.color writes vertex colours, so no material instances.
+            if (_text != null)
+            {
+                Color color = _baseColor;
+                color.a *= 1f - Mathf.InverseLerp(1f - FadePortion, 1f, t);
+                _text.color = color;
+            }
+
+            if (t >= 1f)
+            {
+                ReleaseToPool();
+            }
         }
 
         private void OnDisable()
         {
-            // TODO: if we get disabled mid-animation (scene unload etc.) the pool is probably being torn down, so don't Release
-            // here - just flag as released so the next Play starts clean.
+            // The pool is probably being torn down; never Release from here.
+            _isReleased = true;
         }
 
         // ============ API ============
@@ -97,9 +136,17 @@ namespace Brawler.Presentation
         /// <param name="rotation">World rotation (the camera's rotation, so the text faces the screen).</param>
         public void Play(int amount, Vector3 position, Quaternion rotation)
         {
-            // TODO: set text, position/rotation, reset timer + color, clear the released flag.
-            // amount.ToString() allocates per hit - fine for now since it's per hit, not per frame. If it ever shows up in the
-            // profiler, cache a string table for 0..999.
+            if (_text != null)
+            {
+                _text.text = amount.ToString();
+                _text.color = _baseColor;
+            }
+
+            _startPosition = position;
+            transform.SetPositionAndRotation(position, rotation);
+            transform.localScale = _baseScale * PunchScale;
+            _elapsed = 0f;
+            _isReleased = false;
         }
 
         // ============ Helpers ============
@@ -107,8 +154,21 @@ namespace Brawler.Presentation
         /// <summary>Returns this instance to its pool, at most once per play.</summary>
         private void ReleaseToPool()
         {
-            // TODO: release to the pool exactly once (flag first - Release disables us, which runs OnDisable inside it).
-            // No pool (prefab dropped in a scene by hand) -> just Destroy.
+            if (_isReleased)
+            {
+                return;
+            }
+
+            // Flag first: Release disables us, which runs OnDisable inside it.
+            _isReleased = true;
+            if (_pool != null)
+            {
+                _pool.Release(this);
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
 
         // ============ Validation ============
