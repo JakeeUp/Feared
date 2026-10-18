@@ -41,8 +41,7 @@ namespace Brawler.Combat
         {
             get
             {
-                // TODO: return _currentIndex >= 0.
-                return false;
+                return _currentIndex >= 0;
             }
         }
 
@@ -51,10 +50,8 @@ namespace Brawler.Combat
         {
             get
             {
-                // TODO: in a combo and there's another link after this one.
-                // AttackState checks this BEFORE consuming Attack, which is what makes the finisher dash-cancel only - an attack
-                // press during the finisher's window stays in the buffer instead of getting eaten.
-                return false;
+                // Checked BEFORE consuming Attack, so a press during the finisher stays buffered.
+                return IsInCombo && _currentIndex + 1 < _comboLength;
             }
         }
 
@@ -63,8 +60,7 @@ namespace Brawler.Combat
         {
             get
             {
-                // TODO: current link is the last one. Empty chain -> never true. A 1-hit chain: that hit is the finisher.
-                return false;
+                return IsInCombo && _currentIndex == _comboLength - 1;
             }
         }
 
@@ -74,9 +70,8 @@ namespace Brawler.Combat
         /// <returns>0, or -1 if the chain is empty (tracker stays not-in-combo).</returns>
         public int Begin()
         {
-            // TODO: start at link 0 and return 0. Empty chain -> stay at -1 and return -1 so the caller stays put.
-            // Calling Begin mid-combo just restarts it, no error.
-            return -1;
+            _currentIndex = _comboLength > 0 ? 0 : -1;
+            return _currentIndex;
         }
 
         /// <summary>Advances to the next link if one exists.</summary>
@@ -84,16 +79,21 @@ namespace Brawler.Combat
         /// <returns>True if the chain advanced.</returns>
         public bool TryAdvance(out int nextIndex)
         {
-            // TODO: step to the next link if there is one. On failure don't touch anything - nextIndex is just the
-            // current index (-1 when not in a combo, the finisher's index when at the end).
+            if (!HasNext)
+            {
+                nextIndex = _currentIndex;
+                return false;
+            }
+
+            _currentIndex++;
             nextIndex = _currentIndex;
-            return false;
+            return true;
         }
 
         /// <summary>Ends the combo (<see cref="CurrentIndex"/> = -1).</summary>
         public void Reset()
         {
-            // TODO: back to -1. Safe to call when not in a combo.
+            _currentIndex = -1;
         }
     }
 }
