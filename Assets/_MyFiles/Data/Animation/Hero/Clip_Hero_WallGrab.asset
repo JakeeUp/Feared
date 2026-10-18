@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Hero_WallGrab
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: df6791a11513ece45b62600f4db21ddb, type: 3}
+  - {fileID: 21300000, guid: 896c0e78777439244a9212aabc89b366, type: 3}
+  - {fileID: 21300000, guid: 74213351237c06c4b9b6b34e6afd021a, type: 3}
+  - {fileID: 21300000, guid: 71c2667e5cf0b0a44ada86c0c7bc588f, type: 3}
+  - {fileID: 21300000, guid: 08686020951d5694b8be4e10eb091a42, type: 3}
+  - {fileID: 21300000, guid: e94764141093d6940b0bcfe1b1c958b2, type: 3}
+  - {fileID: 21300000, guid: ca93a7f40be949b43b744ab4278c9dcb, type: 3}
+  - {fileID: 21300000, guid: 8a6e226b302988242ba7c6dff2ef1cfc, type: 3}
+  - {fileID: 21300000, guid: 8de9e0646e650624193290ee73623211, type: 3}
+  - {fileID: 21300000, guid: 71400a6307985e7468440cf7f4d7e3d8, type: 3}
+  - {fileID: 21300000, guid: 4b4b5a4d846caca4f845757fe2e39d25, type: 3}
+  - {fileID: 21300000, guid: 3c66c3ea32ddb744e80352bb2c261530, type: 3}
+  - {fileID: 21300000, guid: aea5e13346cefca4b911b07cd7423338, type: 3}
+  _framesPerSecond: 24
+  _loop: 0
+  _mirrored: 1

@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Hero_Spark3
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: bb9d62d193260ea439c1adbfa6b54700, type: 3}
+  - {fileID: 21300000, guid: 3fac110a113b17f4a9651cf01bd64906, type: 3}
+  - {fileID: 21300000, guid: 578cd6f15f40c8245a2592cbb785298e, type: 3}
+  - {fileID: 21300000, guid: 434e14665bde0e044bcfb77da82198ee, type: 3}
+  _framesPerSecond: 24
+  _loop: 0
+  _mirrored: 0

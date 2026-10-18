@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Hero_Idle
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 5d51693d72895814eb5e7d2597226fbc, type: 3}
+  - {fileID: 21300000, guid: 9e94ea45810c6a7458706ac3e0119e3f, type: 3}
+  - {fileID: 21300000, guid: d7c8da05888dfb44c81147298e2be224, type: 3}
+  - {fileID: 21300000, guid: 99aeb73f53ff84c479a6ce3570de953c, type: 3}
+  _framesPerSecond: 8
+  _loop: 1
+  _mirrored: 0
