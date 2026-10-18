@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 namespace Brawler.Core
 {
     /// <summary>
@@ -50,28 +47,30 @@ namespace Brawler.Core
         /// <param name="next">State to enter. Null is ignored (no Exit, no swap).</param>
         public void ChangeState(IState<TContext> next)
         {
-            // TODO: Exit current -> remember it as previous -> swap -> Enter next. The order is tested, keep it.
-            // - null next is ignored (current state keeps running, nothing exits).
-            // - Same instance as current is NOT a no-op: Exit + Enter both run. Hitstun refresh on re-hit and chaining
-            //   attack -> attack depend on this.
-            // - ChangeState from inside Enter: let the latest Enter win. From inside Exit gets messy - just don't, or add a
-            //   single pending-state slot later if it ever comes up.
-            // Ref: Nystrom, Game Programming Patterns, "State" chapter (the enter/exit actions section).
+            if (next == null)
+            {
+                return;
+            }
+
+            // Same instance is deliberately not short-circuited: hitstun refresh and attack chaining re-enter.
+            _currentState?.Exit(_context);
+            _previousState = _currentState;
+            _currentState = next;
+            _currentState.Enter(_context);
         }
 
         /// <summary>Forwards a render-frame update to the current state (no-op when there is none).</summary>
         /// <param name="deltaTime">Scaled frame delta in seconds (<c>Time.deltaTime</c>).</param>
         public void Tick(float deltaTime)
         {
-            // TODO: forward to the current state. If the state changes mid-Tick, don't tick the new one this frame -
-            // one call, return. Pass deltaTime through untouched (it's 0 during hitstop and that's intended).
+            _currentState?.Tick(_context, deltaTime);
         }
 
         /// <summary>Forwards a fixed-step update to the current state (no-op when there is none).</summary>
         /// <param name="fixedDeltaTime">Scaled fixed delta in seconds (<c>Time.fixedDeltaTime</c>).</param>
         public void FixedTick(float fixedDeltaTime)
         {
-            // TODO: same as Tick, for FixedUpdate.
+            _currentState?.FixedTick(_context, fixedDeltaTime);
         }
 
         /// <summary>True when <paramref name="state"/> is the current state (reference equality).</summary>
@@ -79,9 +78,7 @@ namespace Brawler.Core
         /// <returns>True if <paramref name="state"/> is the very same instance as <see cref="CurrentState"/>.</returns>
         public bool IsInState(IState<TContext> state)
         {
-            // TODO: reference comparison (ReferenceEquals, so a state overriding Equals can't fool it).
-            // IsInState(null) before the first ChangeState returns true - that's fine, there's a test for it.
-            return false;
+            return ReferenceEquals(_currentState, state);
         }
     }
 }
