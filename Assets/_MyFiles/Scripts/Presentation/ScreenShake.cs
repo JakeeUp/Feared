@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using System;
 using Brawler.Combat;
 using Brawler.Core;
@@ -17,6 +14,12 @@ namespace Brawler.Presentation
     [DisallowMultipleComponent]
     public sealed class ScreenShake : MonoBehaviour
     {
+        // ============ Constants ============
+
+        /// <summary>Perlin rows per axis (non-integer so samples never sit on lattice points).</summary>
+        private const float NoiseRowX = 0.37f;
+        private const float NoiseRowY = 7.71f;
+
         // ============ Serialized Fields ============
 
         [Header("References")]
@@ -70,22 +73,40 @@ namespace Brawler.Presentation
                 _eventBus.Unsubscribe(_onHit);
             }
 
-            // TODO: zero trauma and reset the shake transform so a disabled shaker never leaves the camera offset.
+            _trauma = 0f;
+            if (_shakeTransform != null)
+            {
+                _shakeTransform.localPosition = Vector3.zero;
+            }
         }
 
         private void LateUpdate()
         {
-            // TODO: trauma-based shake.
-            // - Unscaled dt (hitstop sets timeScale 0 and we still want the shake during it).
-            // - shake = trauma^2, so small hits barely move and big hits really kick.
-            // - Offset X/Y from Perlin noise (remap to -1..1, different row per axis, avoid integer coordinates - Perlin is ~0.5
-            //   at lattice points so it won't move). Scale by ShakeMaxOffset. No Z, it'd look like a zoom pulse.
-            // - Decay trauma linearly over time.
-            // - Separate ShakeRoot because CameraRig's follow writes the root position every frame; shaking there means the
-            //   follow fights it.
-            // - A tiny roll can add punch, but BillboardSprite copies camera rotation so sprites would roll too. Keep it small.
-            // Ref: Squirrel Eiserloh, GDC 2016 "Math for Game Programmers: Juicing Your Cameras With Math" - where the
-            // trauma^2 + Perlin approach comes from.
+            if (_shakeTransform == null || _settings == null)
+            {
+                return;
+            }
+
+            if (_trauma <= 0f)
+            {
+                return;
+            }
+
+            // Unscaled so the shake keeps going through hitstop.
+            float dt = Time.unscaledDeltaTime;
+            _noiseTime += dt * _settings.ShakeFrequency;
+
+            // trauma^2: small hits barely move, big hits kick. Offset rows keep Perlin off its lattice points.
+            float shake = _trauma * _trauma * _settings.ShakeMaxOffset;
+            float x = (Mathf.PerlinNoise(_noiseTime, NoiseRowX) * 2f - 1f) * shake;
+            float y = (Mathf.PerlinNoise(_noiseTime, NoiseRowY) * 2f - 1f) * shake;
+            _shakeTransform.localPosition = new Vector3(x, y, 0f);
+
+            _trauma = Mathf.Max(0f, _trauma - _settings.TraumaDecayPerSecond * dt);
+            if (_trauma <= 0f)
+            {
+                _shakeTransform.localPosition = Vector3.zero;
+            }
         }
 
         // ============ API ============
@@ -94,7 +115,12 @@ namespace Brawler.Presentation
         /// <param name="amount">Trauma to add (0..1). Negative values are ignored.</param>
         public void AddTrauma(float amount)
         {
-            // TODO: add trauma, clamped to 0..1. Ignore <= 0.
+            if (amount <= 0f)
+            {
+                return;
+            }
+
+            _trauma = Mathf.Clamp01(_trauma + amount);
         }
 
         // ============ Event Handlers ============
@@ -103,8 +129,7 @@ namespace Brawler.Presentation
         /// <param name="evt">The hit.</param>
         private void OnHit(HitEvent evt)
         {
-            // TODO: add the hit's shake as trauma. One swing hitting several targets publishes several events, so trauma
-            // stacks (clamped). If that's too much, keep the max per frame instead of summing.
+            AddTrauma(evt.ScreenShake);
         }
     }
 }
