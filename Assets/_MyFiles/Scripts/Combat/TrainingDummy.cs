@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using UnityEngine;
 
 namespace Brawler.Combat
@@ -14,6 +11,11 @@ namespace Brawler.Combat
     [RequireComponent(typeof(CharacterController))]
     public sealed class TrainingDummy : MonoBehaviour, IDamageable, IKnockbackable
     {
+        // ============ Constants ============
+
+        /// <summary>Downward velocity held while grounded so CharacterController.isGrounded stays stable.</summary>
+        private const float GroundStickVelocity = -2f;
+
         // ============ Serialized Fields ============
 
         [Header("Settings")]
@@ -49,17 +51,43 @@ namespace Brawler.Combat
                 _characterController = GetComponent<CharacterController>();
             }
 
-            // TODO: full health, zero timers and velocities.
+            _currentHealth = MaxHealth;
+            _knockbackVelocity = Vector3.zero;
+            _verticalVelocity = 0f;
+            _timeSinceLastHit = 0f;
         }
 
         private void Update()
         {
-            // TODO: per-frame upkeep on scaled time (dt is 0 during hitstop, so the dummy freezes with everything else).
-            // - Refill health once it's gone ResetDelaySeconds without being hit.
-            // - Bleed off knockback with MoveTowards using KnockbackDeceleration (planar only; vertical is handled below).
-            // - Gravity, with a small constant downward push while grounded - isGrounded flickers without it.
-            // - One CharacterController.Move per frame with everything combined. The docs are pretty clear isGrounded is
-            //   only updated by Move, so calling it more than once a frame confuses it.
+            float dt = Time.deltaTime;
+            if (_settings == null || _characterController == null || dt <= 0f)
+            {
+                return;
+            }
+
+            if (_currentHealth < MaxHealth)
+            {
+                _timeSinceLastHit += dt;
+                if (_timeSinceLastHit >= _settings.ResetDelaySeconds)
+                {
+                    _currentHealth = MaxHealth;
+                }
+            }
+
+            _knockbackVelocity = Vector3.MoveTowards(_knockbackVelocity, Vector3.zero, _settings.KnockbackDeceleration * dt);
+
+            // Small constant push while grounded keeps isGrounded from flickering.
+            if (_characterController.isGrounded && _verticalVelocity <= 0f)
+            {
+                _verticalVelocity = GroundStickVelocity;
+            }
+            else
+            {
+                _verticalVelocity += _settings.Gravity * dt;
+            }
+
+            // One Move per frame: isGrounded is only refreshed by Move.
+            _characterController.Move((_knockbackVelocity + Vector3.up * _verticalVelocity) * dt);
         }
 
         // ============ IDamageable ============
@@ -69,10 +97,10 @@ namespace Brawler.Combat
         /// <returns>True (hit accepted).</returns>
         public bool TryApplyDamage(in DamageInfo info)
         {
-            // TODO: subtract damage (floor at 0), restart the reset timer, return true.
-            // Never dies or disables - at 0 it just stands there until the timer refills it.
-            // Might be worth zeroing the knockback velocity here so a new hit replaces the old slide instead of stacking.
-            return false;
+            _currentHealth = Mathf.Max(0, _currentHealth - info.Amount);
+            _timeSinceLastHit = 0f;
+            _knockbackVelocity = Vector3.zero;
+            return true;
         }
 
         // ============ IKnockbackable ============
@@ -81,8 +109,13 @@ namespace Brawler.Combat
         /// <param name="velocity">World-space knockback velocity in units/s (Y = launch).</param>
         public void ApplyKnockback(Vector3 velocity)
         {
-            // TODO: scale by KnockbackScale, SET planar velocity (don't add - that's the contract), and use positive Y as a
-            // launch (the finisher pops them up a bit).
+            float scale = _settings != null ? _settings.KnockbackScale : 1f;
+            _knockbackVelocity = new Vector3(velocity.x, 0f, velocity.z) * scale;
+
+            if (velocity.y > 0f)
+            {
+                _verticalVelocity = velocity.y * scale;
+            }
         }
 
         // ============ Validation ============
