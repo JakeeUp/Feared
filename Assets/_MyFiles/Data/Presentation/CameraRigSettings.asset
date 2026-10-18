@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 87d35fe269ef390449f40f603af24202, type: 3}
   m_Name: CameraRigSettings
   m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.CameraRigSettings
-  _pitch: 25
+  _pitch: 32
   _yaw: 0
-  _distance: 14
+  _distance: 11
   _fieldOfView: 30
   _targetOffset: {x: 0, y: 1, z: 0}
   _followSmoothTime: 0.12
