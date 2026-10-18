@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using System.Collections.Generic;
 using Brawler.Core;
 using UnityEngine;
@@ -77,52 +74,103 @@ namespace Brawler.Combat
         /// <param name="facingSign">Attacker facing (+1 right, -1 left) — mirrors the X offset and knockback. Locked for the activation.</param>
         public void BeginAttack(AttackData attack, int facingSign)
         {
-            // TODO: arm the hitbox for this attack - store attack + facing (force +/-1, never 0) and clear the hit set
-            // (Clear keeps capacity, so no alloc).
-            // Clearing on every BeginAttack is what lets the next link of a combo hit the same dummy again.
+            _attack = attack;
+            _facingSign = facingSign < 0 ? -1 : 1;
+
+            // Fresh set per activation lets the next combo link hit the same target again.
+            _hitThisActivation.Clear();
+            _isActive = attack != null;
         }
 
         /// <summary>Runs one overlap query for the current simulation frame and applies hits.</summary>
         /// <returns>Number of NEW targets hit by this call (0 if inactive or nothing connected).</returns>
         public int Sweep()
         {
-            // TODO: the actual hit check. Returns how many targets got hit this call.
-            // - OverlapBoxNonAlloc into _results with QueryTriggerInteraction.Collide - hurtboxes are triggers, so the default
-            //   setting can skip them depending on project physics settings. Anything past _results.Length is dropped silently
-            //   (see the docs), so size MaxOverlapResults with some headroom.
-            // - Per result: needs a Hurtbox, isn't ours, wasn't already hit this activation, has a damageable owner.
-            // - Invulnerable (i-frames) -> skip WITHOUT marking as hit. If the active window outlasts the dodge, the target
-            //   can still get clipped at the end, which is how it should feel.
-            // - Damage first, then knockback. Hitstun's Enter zeroes velocity, so doing knockback first would get wiped.
-            // - Only on a successful TryApplyDamage: mark hit, then publish HitEvent (hitstop/shake/numbers all hang off it).
-            // - Plain for loop, no LINQ/lambdas - this runs every active frame.
-            return 0;
+            if (!_isActive || _attack == null || _combatSettings == null)
+            {
+                return 0;
+            }
+
+            Vector3 center = GetWorldCenter();
+            int count = Physics.OverlapBoxNonAlloc(
+                center,
+                GetHalfExtents(),
+                _results,
+                Quaternion.identity,
+                _combatSettings.HurtboxLayers,
+                QueryTriggerInteraction.Collide);
+
+            int hits = 0;
+            for (int i = 0; i < count; i++)
+            {
+                if (!_results[i].TryGetComponent(out Hurtbox hurtbox)
+                    || hurtbox == _ownerHurtbox
+                    || hurtbox.Damageable == null
+                    || _hitThisActivation.Contains(hurtbox))
+                {
+                    continue;
+                }
+
+                // Not marked as hit, so the target can still be clipped once its i-frames end.
+                if (hurtbox.IsInvulnerable)
+                {
+                    continue;
+                }
+
+                Vector3 hitPoint = hurtbox.Collider != null ? hurtbox.Collider.ClosestPoint(center) : hurtbox.transform.position;
+                DamageInfo info = _attack.CreateDamageInfo(_facingSign, hitPoint, _owner);
+
+                // Damage before knockback: hitstun Enter zeroes velocity.
+                if (!hurtbox.Damageable.TryApplyDamage(info))
+                {
+                    continue;
+                }
+
+                hurtbox.Knockbackable?.ApplyKnockback(info.Knockback);
+                _hitThisActivation.Add(hurtbox);
+                hits++;
+
+                if (_eventBus != null)
+                {
+                    _eventBus.Publish(new HitEvent(info, hurtbox.OwnerRoot, _attack.HitStopFrames, _attack.ScreenShake));
+                }
+            }
+
+            return hits;
         }
 
         /// <summary>Disarms the hitbox and clears per-activation state.</summary>
         public void EndAttack()
         {
-            // TODO: disarm and clear. Has to be safe when already inactive - AttackState.Exit and HitstunState.Enter both
-            // call it on the same transition sometimes.
+            _isActive = false;
+            _attack = null;
+            _hitThisActivation?.Clear();
         }
 
         /// <summary>World-space center of the hitbox for the current attack and facing.</summary>
         /// <returns>transform.position + (offset.x * facing, offset.y, 0); transform.position if no attack.</returns>
         public Vector3 GetWorldCenter()
         {
-            // TODO: owner position + the attack's offset, with X flipped by facing. World axes rather than transform.right -
-            // characters never actually rotate, facing is just a sign.
-            return default;
+            if (_attack == null)
+            {
+                return transform.position;
+            }
+
+            Vector2 offset = _attack.HitboxOffset;
+            return transform.position + new Vector3(offset.x * _facingSign, offset.y, 0f);
         }
 
         /// <summary>Half extents of the axis-aligned hitbox box.</summary>
         /// <returns>(size.x / 2, size.y / 2, CombatSettings.DepthTolerance); zero if no attack/settings.</returns>
         public Vector3 GetHalfExtents()
         {
-            // TODO: half the attack's size on X/Y; Z comes from CombatSettings.DepthTolerance, which is already a half-depth.
-            // That Z tolerance is the beat 'em up "same lane" check - how far apart on depth two characters can be and still
-            // connect.
-            return default;
+            if (_attack == null || _combatSettings == null)
+            {
+                return Vector3.zero;
+            }
+
+            Vector2 size = _attack.HitboxSize;
+            return new Vector3(size.x * 0.5f, size.y * 0.5f, _combatSettings.DepthTolerance);
         }
 
         // ============ Validation ============
