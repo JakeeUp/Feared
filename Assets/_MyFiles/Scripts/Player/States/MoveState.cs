@@ -1,4 +1,5 @@
 using Brawler.Core;
+using UnityEngine;
 
 namespace Brawler.Player
 {
@@ -9,32 +10,63 @@ namespace Brawler.Player
     /// </summary>
     public sealed class MoveState : IState<PlayerContext>
     {
+        // ============ Constants ============
+
+        /// <summary>Minimum |input X| that turns the player, so near-pure depth input keeps the current facing.</summary>
+        private const float FacingThreshold = 0.1f;
+
+        // ============ IState ============
+
         /// <inheritdoc />
         public void Enter(PlayerContext context)
         {
-            // TODO: nothing required. Keep current velocity so momentum from a dash carries into the run.
+            // Velocity is kept so momentum from a dash carries into the run.
         }
 
         /// <inheritdoc />
         public void Tick(PlayerContext context, float deltaTime)
         {
-            // TODO: same transitions as Idle (dash -> attack -> back to Idle when the stick is neutral), then:
-            // - facing from input X, only when X is non-zero (pure depth input keeps the current facing, never 0)
-            // - accelerate toward input * MoveSpeed with MoveTowards; using Deceleration when slowing down/turning reads better
-            // - Move.
-            // Accel/decel numbers are where most of the "weight" comes from - Steve Swink's Game Feel is a good read on this.
+            if (context.TryStartAction())
+            {
+                return;
+            }
+
+            if (context.HasLeftGround())
+            {
+                context.Machine.ChangeState(context.States.Air);
+                return;
+            }
+
+            if (!context.HasMoveInput())
+            {
+                context.Machine.ChangeState(context.States.Idle);
+                return;
+            }
+
+            Vector3 input = context.GetMoveInputWorld();
+            if (Mathf.Abs(input.x) > FacingThreshold)
+            {
+                context.FacingSign = input.x > 0f ? 1 : -1;
+            }
+
+            // Deceleration when slowing down or turning reads heavier than accelerating through a reversal.
+            PlayerMovementSettings movement = context.Movement;
+            Vector3 target = input * movement.MoveSpeed;
+            bool slowing = target.sqrMagnitude < context.Velocity.sqrMagnitude || Vector3.Dot(target, context.Velocity) < 0f;
+            float rate = slowing ? movement.Deceleration : movement.Acceleration;
+
+            context.Velocity = Vector3.MoveTowards(context.Velocity, target, rate * deltaTime);
+            context.Move(context.Velocity, deltaTime);
         }
 
         /// <inheritdoc />
         public void FixedTick(PlayerContext context, float fixedDeltaTime)
         {
-            // TODO: nothing - locomotion lives in Tick (CharacterController doesn't interpolate).
         }
 
         /// <inheritdoc />
         public void Exit(PlayerContext context)
         {
-            // TODO: nothing. Don't zero velocity - attack lunge and dash overwrite it anyway, and Idle eases it out.
         }
     }
 }

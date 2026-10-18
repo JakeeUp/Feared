@@ -1,4 +1,5 @@
 using Brawler.Core;
+using UnityEngine;
 
 namespace Brawler.Player
 {
@@ -13,30 +14,42 @@ namespace Brawler.Player
         /// <inheritdoc />
         public void Enter(PlayerContext context)
         {
-            // TODO: nothing required. Don't zero velocity here - letting Tick decelerate it makes stopping after a dash or a
-            // knockback slide look smooth instead of snapping.
+            // Velocity is kept so Tick eases out of a dash or knockback slide instead of snapping.
         }
 
         /// <inheritdoc />
         public void Tick(PlayerContext context, float deltaTime)
         {
-            // TODO: transitions first, in priority order, returning right after any ChangeState:
-            // dash (buffered) -> attack (buffered, start the combo) -> move input.
-            // Use TryConsume directly rather than Peek-then-consume so one check can't eat two commands.
-            // Then decelerate and always call Move, even at zero velocity - that's what applies gravity/grounding.
-            // Facing doesn't change in Idle.
+            if (context.TryStartAction())
+            {
+                return;
+            }
+
+            if (context.HasLeftGround())
+            {
+                context.Machine.ChangeState(context.States.Air);
+                return;
+            }
+
+            if (context.HasMoveInput())
+            {
+                context.Machine.ChangeState(context.States.Move);
+                return;
+            }
+
+            // Always Move, even at rest: that's what applies gravity/grounding.
+            context.Velocity = Vector3.MoveTowards(context.Velocity, Vector3.zero, context.Movement.Deceleration * deltaTime);
+            context.Move(context.Velocity, deltaTime);
         }
 
         /// <inheritdoc />
         public void FixedTick(PlayerContext context, float fixedDeltaTime)
         {
-            // TODO: nothing - Idle has no frame timeline.
         }
 
         /// <inheritdoc />
         public void Exit(PlayerContext context)
         {
-            // TODO: nothing.
         }
     }
 }
