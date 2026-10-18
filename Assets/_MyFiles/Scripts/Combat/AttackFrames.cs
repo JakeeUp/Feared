@@ -71,8 +71,7 @@ namespace Brawler.Combat
         {
             get
             {
-                // TODO: return _startup + _active + _recovery.
-                return default;
+                return _startup + _active + _recovery;
             }
         }
 
@@ -83,10 +82,17 @@ namespace Brawler.Combat
         /// <returns>The phase; <see cref="AttackPhase.Finished"/> once frame &gt;= TotalFrames.</returns>
         public AttackPhase GetPhase(int frame)
         {
-            // TODO: half-open ranges - [0,S) startup, [S,S+A) active, [S+A,total) recovery, >= total finished.
-            // frame < 0 counts as startup. startup 0 means frame 0 is already active (tested).
-            // Terminology follows the usual fighting-game frame data (see the SuperCombo / Dustloop wiki glossaries).
-            return default;
+            if (frame < _startup)
+            {
+                return AttackPhase.Startup;
+            }
+
+            if (frame < _startup + _active)
+            {
+                return AttackPhase.Active;
+            }
+
+            return frame < TotalFrames ? AttackPhase.Recovery : AttackPhase.Finished;
         }
 
         /// <summary>True while the hitbox should be live.</summary>
@@ -94,8 +100,7 @@ namespace Brawler.Combat
         /// <returns>True when <see cref="GetPhase"/> is Active.</returns>
         public bool IsActive(int frame)
         {
-            // TODO: return GetPhase(frame) == AttackPhase.Active.
-            return false;
+            return GetPhase(frame) == AttackPhase.Active;
         }
 
         /// <summary>True while the attack may be cancelled into the next combo attack or Dash.</summary>
@@ -103,9 +108,7 @@ namespace Brawler.Combat
         /// <returns>True when CancelWindowStart &lt;= frame &lt; CancelWindowEnd.</returns>
         public bool IsInCancelWindow(int frame)
         {
-            // TODO: half-open [start, end). start >= end means this attack has no cancel window.
-            // Don't clamp to TotalFrames here - AttackData.OnValidate is where bad authoring gets flagged.
-            return false;
+            return frame >= _cancelWindowStart && frame < _cancelWindowEnd;
         }
 
         /// <summary>True once the attack's timeline has fully elapsed.</summary>
@@ -113,8 +116,7 @@ namespace Brawler.Combat
         /// <returns>True when frame &gt;= TotalFrames.</returns>
         public bool IsFinished(int frame)
         {
-            // TODO: return frame >= TotalFrames.
-            return false;
+            return frame >= TotalFrames;
         }
     }
 }
