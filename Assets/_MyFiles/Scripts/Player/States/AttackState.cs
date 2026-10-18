@@ -1,8 +1,6 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using Brawler.Combat;
 using Brawler.Core;
+using UnityEngine;
 
 namespace Brawler.Player
 {
@@ -23,56 +21,136 @@ namespace Brawler.Player
         private readonly FrameClock _clock = new FrameClock();
         private AttackData _attack;
 
+        // ============ Properties (read by presentation) ============
+
+        /// <summary>The attack playing, or null outside the state.</summary>
+        public AttackData CurrentAttack => _attack;
+
+        /// <summary>Simulation frame of the current attack (0 at Enter).</summary>
+        public int CurrentFrame => _clock.Frame;
+
+        /// <summary>Increments on every Enter, so presentation can tell a re-entered (chained) attack from the same one.</summary>
+        public int ActivationCount { get; private set; }
+
         // ============ IState ============
 
         /// <inheritdoc />
         public void Enter(PlayerContext context)
         {
-            // TODO: grab the attack for the current combo index, reset the frame clock, arm the hitbox with the current
-            // facing (facing is locked for the rest of the swing), and process frame 0 right away so 0-startup attacks
-            // actually hit on frame 0.
-            // - Missing attack (bad index / unassigned asset): reset the combo and bail to Idle.
-            // - Chaining re-enters this same state, so Exit/Enter clears the hit set and the next link can hit the same target.
-            //   Don't reset the ComboTracker in Exit or chaining breaks.
+            _attack = context.Combo != null ? context.Combo.GetAttack(context.ComboTracker.CurrentIndex) : null;
+            if (_attack == null)
+            {
+                context.ComboTracker.Reset();
+                context.Machine.ChangeState(context.States.Idle);
+                return;
+            }
+
+            _clock.Reset();
+            ActivationCount++;
+
+            // Facing is locked for the whole swing.
+            if (context.Hitbox != null)
+            {
+                context.Hitbox.BeginAttack(_attack, context.FacingSign);
+            }
+
+            // Frame 0 right away so 0-startup attacks hit on frame 0.
+            ProcessFrame(context, 0);
         }
 
         /// <inheritdoc />
         public void Tick(PlayerContext context, float deltaTime)
         {
-            // TODO: cancels, lunge, move.
-            // - Inside the cancel window: buffered dash -> reset combo, Dash. Otherwise if there IS a next link and attack is
-            //   buffered -> advance the combo and re-enter Attack.
-            //   Check HasNext before consuming, so an attack press during the finisher stays buffered (and expires) instead of
-            //   being eaten.
-            // - A press made during startup only chains if it's still in the buffer when the window opens, so cancel start and
-            //   the buffer window need tuning together. This window is basically the DMC / fighting game "link" timing.
-            // - Lunge forward during startup/active, decelerate during recovery. Always call Move (gravity).
-            // - No facing changes mid-swing.
+            if (_attack == null)
+            {
+                return;
+            }
+
+            AttackFrames frames = _attack.Frames;
+            int frame = _clock.Frame;
+
+            if (frames.IsInCancelWindow(frame))
+            {
+                if (context.Buffer.TryConsume(BufferedCommand.Dash, context.Time))
+                {
+                    context.ComboTracker.Reset();
+                    context.Machine.ChangeState(context.States.Dash);
+                    return;
+                }
+
+                // Jump cancel (grounded only) launches straight out of the swing.
+                if (context.IsGrounded && context.Buffer.TryConsume(BufferedCommand.Jump, context.Time))
+                {
+                    context.ComboTracker.Reset();
+                    context.StartJump();
+                    return;
+                }
+
+                // HasNext before consuming, so a press during the finisher stays buffered instead of being eaten.
+                if (context.ComboTracker.HasNext && context.Buffer.TryConsume(BufferedCommand.Attack, context.Time))
+                {
+                    context.ComboTracker.TryAdvance(out _);
+                    context.Machine.ChangeState(context.States.Attack);
+                    return;
+                }
+            }
+
+            AttackPhase phase = frames.GetPhase(frame);
+            if (phase == AttackPhase.Startup || phase == AttackPhase.Active)
+            {
+                context.Velocity = new Vector3(context.FacingSign * _attack.LungeSpeed, 0f, 0f);
+            }
+            else
+            {
+                context.Velocity = Vector3.MoveTowards(context.Velocity, Vector3.zero, context.Movement.Deceleration * deltaTime);
+            }
+
+            context.Move(context.Velocity, deltaTime);
         }
 
         /// <inheritdoc />
         public void FixedTick(PlayerContext context, float fixedDeltaTime)
         {
-            // TODO: advance the clock, process every frame we stepped over (so a 1-frame active window is never skipped when
-            // one FixedUpdate covers two sim frames), then if the attack is finished: reset the combo and go to Move/Idle.
-            // Anything still buffered then gets used by Idle/Move on their next tick (fresh combo or dash).
-            // No special hitstop handling needed - timeScale 0 stops FixedUpdate.
+            if (_attack == null)
+            {
+                return;
+            }
+
+            // Process every stepped-over frame so a 1-frame active window is never skipped.
+            int steps = _clock.Advance(fixedDeltaTime);
+            for (int frame = _clock.Frame - steps + 1; frame <= _clock.Frame; frame++)
+            {
+                ProcessFrame(context, frame);
+            }
+
+            if (_attack.Frames.IsFinished(_clock.Frame))
+            {
+                context.ComboTracker.Reset();
+                context.ChangeToLocomotion();
+            }
         }
 
         /// <inheritdoc />
         public void Exit(PlayerContext context)
         {
-            // TODO: disarm the hitbox, drop the attack ref. Runs on every exit path (finished, dash cancel, next link,
-            // got hit) so keep it idempotent. Resetting the combo is the job of whichever transition ends it.
+            // Combo reset is left to whichever transition ends the combo; chaining re-enters this state.
+            if (context.Hitbox != null)
+            {
+                context.Hitbox.EndAttack();
+            }
+
+            _attack = null;
         }
 
         // ============ Helpers ============
 
         private void ProcessFrame(PlayerContext context, int frame)
         {
-            // TODO: sweep the hitbox on active frames. Sweep dedupes per activation, so calling it every active frame is right -
-            // something that walks into the box late still gets hit exactly once.
-            // If hits feel a step late, a single Physics.SyncTransforms() before the first sweep is worth trying.
+            // Sweep dedupes per activation, so a target walking in late is still hit exactly once.
+            if (_attack != null && _attack.Frames.IsActive(frame) && context.Hitbox != null)
+            {
+                context.Hitbox.Sweep();
+            }
         }
     }
 }
