@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 namespace Brawler.Core
 {
     /// <summary>
@@ -59,7 +56,7 @@ namespace Brawler.Core
             get => _windowSeconds;
             set
             {
-                // TODO: store it. Probably clamp negatives to 0 - a negative window means nothing ever buffers.
+                _windowSeconds = value < 0f ? 0f : value;
             }
         }
 
@@ -71,8 +68,7 @@ namespace Brawler.Core
         {
             get
             {
-                // TODO: return _count.
-                return 0;
+                return _count;
             }
         }
 
@@ -83,8 +79,22 @@ namespace Brawler.Core
         /// <param name="time">Press timestamp in seconds (same clock as the <c>now</c> passed to queries).</param>
         public void Enqueue(BufferedCommand command, float time)
         {
-            // TODO: write at the ring's tail. When full, drop the oldest - a press from 8 inputs ago is worth less than the
-            // one that just came in. Ignore None. Presses already arrive in time order, so no sorting.
+            if (command == BufferedCommand.None)
+            {
+                return;
+            }
+
+            // Full: drop the oldest so the newest press always fits.
+            if (_count == _entries.Length)
+            {
+                _head = (_head + 1) % _entries.Length;
+                _count--;
+            }
+
+            int tail = (_head + _count) % _entries.Length;
+            _entries[tail].Command = command;
+            _entries[tail].Time = time;
+            _count++;
         }
 
         /// <summary>
@@ -95,13 +105,32 @@ namespace Brawler.Core
         /// <returns>True if a live matching entry existed and was removed.</returns>
         public bool TryConsume(BufferedCommand command, float now)
         {
-            // TODO: walk oldest -> newest, remove the first live match, return true.
-            // - Only ever remove ONE. Mashing attack 3x during recovery should feed three combo steps, not one.
-            // - Keep the rest in order when removing (shift down; capacity is ~8 so the cost is nothing).
-            // - Expired entries at the head can never come back (now only goes up), so pruning them here keeps Count honest.
-            // Context: fighting games tend to buffer somewhere in the 3-10 frame range. The window lives in
-            // InputBufferSettings so it gets tuned by feel instead of guessed here.
-            return false;
+            if (command == BufferedCommand.None)
+            {
+                return false;
+            }
+
+            // Expired entries at the head can never become live again (now only goes up).
+            while (_count > 0 && !IsLive(_entries[_head].Time, now))
+            {
+                _head = (_head + 1) % _entries.Length;
+                _count--;
+            }
+
+            int found = FindLive(command, now);
+            if (found < 0)
+            {
+                return false;
+            }
+
+            // Shift later entries down one slot so ordering is preserved.
+            for (int i = found; i < _count - 1; i++)
+            {
+                _entries[(_head + i) % _entries.Length] = _entries[(_head + i + 1) % _entries.Length];
+            }
+
+            _count--;
+            return true;
         }
 
         /// <summary>True if a live entry matching <paramref name="command"/> exists. Does not remove anything.</summary>
@@ -110,20 +139,37 @@ namespace Brawler.Core
         /// <returns>True when at least one live matching entry is stored.</returns>
         public bool Peek(BufferedCommand command, float now)
         {
-            // TODO: same scan as TryConsume but read-only - Count and ordering can't change.
-            return false;
+            return command != BufferedCommand.None && FindLive(command, now) >= 0;
         }
 
         /// <summary>Removes every stored entry (e.g. on Hitstun enter so the player can't mash out).</summary>
         public void Clear()
         {
-            // TODO: reset head/count. No need to wipe the array, stale slots are unreachable anyway.
+            _head = 0;
+            _count = 0;
         }
 
         // ============ Helpers ============
 
-        // TODO: IsLive(pressTime, now) => now - pressTime <= window.
-        // That one comparison covers both the inclusive boundary and future-stamped presses (negative age).
-        // Careful with float precision in the tests - use exactly-representable values or a small epsilon.
+        /// <summary>Inclusive window test; future-stamped presses have a negative age and count as live.</summary>
+        private bool IsLive(float pressTime, float now)
+        {
+            return now - pressTime <= _windowSeconds;
+        }
+
+        /// <summary>Offset from <see cref="_head"/> of the oldest live entry matching <paramref name="command"/>, or -1.</summary>
+        private int FindLive(BufferedCommand command, float now)
+        {
+            for (int i = 0; i < _count; i++)
+            {
+                Entry entry = _entries[(_head + i) % _entries.Length];
+                if (entry.Command == command && IsLive(entry.Time, now))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
     }
 }
