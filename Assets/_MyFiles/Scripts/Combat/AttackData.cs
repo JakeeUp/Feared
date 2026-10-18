@@ -81,18 +81,34 @@ namespace Brawler.Combat
         /// <returns>The damage payload.</returns>
         public DamageInfo CreateDamageInfo(int facingSign, Vector3 hitPoint, Transform source)
         {
-            // TODO: mirror knockback X by facing, leave Y alone, and build the DamageInfo.
-            // facingSign 0 should behave like +1 - a bad caller shouldn't be able to zero out knockback.
-            return default;
+            float sign = facingSign < 0 ? -1f : 1f;
+            var knockback = new Vector3(_knockback.x * sign, _knockback.y, 0f);
+            return new DamageInfo(_damage, knockback, _hitstunFrames, hitPoint, source);
         }
 
         // ============ Validation ============
 
         private void OnValidate()
         {
-            // TODO: sanity-check frame data while authoring - active >= 1, cancel end >= cancel start.
-            // Warn (with this as context) if the cancel window runs past TotalFrames, or opens before the active frames are
-            // over. Cancelling before the hitbox finishes is legal but usually a typo, it can skip hits.
+            AttackFrames frames = _frames;
+            int active = Mathf.Max(1, frames.Active);
+            int cancelEnd = Mathf.Max(frames.CancelWindowStart, frames.CancelWindowEnd);
+            if (active != frames.Active || cancelEnd != frames.CancelWindowEnd)
+            {
+                _frames = new AttackFrames(frames.Startup, active, frames.Recovery, frames.CancelWindowStart, cancelEnd);
+                frames = _frames;
+            }
+
+            if (frames.CancelWindowEnd > frames.TotalFrames)
+            {
+                Debug.LogWarning($"{nameof(AttackData)} '{name}': cancel window ends at {frames.CancelWindowEnd}, past TotalFrames ({frames.TotalFrames}).", this);
+            }
+
+            int activeEnd = frames.Startup + frames.Active;
+            if (frames.CancelWindowStart < frames.CancelWindowEnd && frames.CancelWindowStart < activeEnd)
+            {
+                Debug.LogWarning($"{nameof(AttackData)} '{name}': cancel window opens at {frames.CancelWindowStart}, before the active frames end ({activeEnd}); cancels may skip hits.", this);
+            }
         }
     }
 }
