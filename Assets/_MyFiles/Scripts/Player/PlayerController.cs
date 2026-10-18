@@ -52,8 +52,11 @@ namespace Brawler.Player
         /// <summary>True during dash i-frames.</summary>
         public bool IsInvulnerable => _context != null && _context.IsInvulnerable;
 
-        /// <summary>Current state (debugging / gizmos). Null before Awake.</summary>
+        /// <summary>Current state (debugging / gizmos / animation). Null before Awake.</summary>
         public IState<PlayerContext> CurrentState => _machine?.CurrentState;
+
+        /// <summary>The player's blackboard (read-only use by presentation, e.g. PlayerAnimationDriver). Null before Awake.</summary>
+        public PlayerContext Context => _context;
 
         // ============ Lifecycle ============
 
@@ -99,8 +102,21 @@ namespace Brawler.Player
                 _inputReader.CommandPressed -= _onCommandPressed;
             }
 
-            // TODO: if we get disabled mid-dash or mid-attack, clean up - drop i-frames, disarm the hitbox, clear the buffer.
-            // Otherwise re-enabling resumes with stale invulnerability or a live hitbox. (Forcing Idle in OnEnable works too.)
+            if (_context == null)
+            {
+                return;
+            }
+
+            // Back to Idle so re-enabling never resumes a stale dash (i-frames) or attack (live hitbox).
+            _context.ComboTracker.Reset();
+            _machine.ChangeState(_context.States.Idle);
+            _context.IsInvulnerable = false;
+            _context.Buffer.Clear();
+
+            if (_hitbox != null)
+            {
+                _hitbox.EndAttack();
+            }
         }
 
         private void Update()
@@ -121,10 +137,8 @@ namespace Brawler.Player
 
         private void OnCommandPressed(BufferedCommand command)
         {
-            // TODO: push into the input buffer stamped with Time.time.
-            // Scaled time on purpose - it stops during hitstop, so a press made during the freeze is still fresh when play
-            // resumes. That's a big part of combos feeling responsive.
-            // Don't change state here; states pull from the buffer in their own Tick, in priority order.
+            // Scaled time: it stops during hitstop, so presses made in the freeze are still fresh afterwards.
+            _context.Buffer.Enqueue(command, Time.time);
         }
 
         // ============ IDamageable ============
@@ -134,10 +148,15 @@ namespace Brawler.Player
         /// <returns>True if the hit connected.</returns>
         public bool TryApplyDamage(in DamageInfo info)
         {
-            // TODO: reject while invulnerable (Hitbox already skips these, this is just belt and braces), store LastHit, go to
-            // Hitstun from any state, return true. Hitstun -> Hitstun re-enters, which refreshes the stun.
-            // No health yet - when it shows up it should be its own component, not more code in here.
-            return false;
+            if (IsInvulnerable)
+            {
+                return false;
+            }
+
+            // Hitstun -> Hitstun re-enters, which refreshes the stun.
+            _context.LastHit = info;
+            _machine.ChangeState(_context.States.Hitstun);
+            return true;
         }
 
         // ============ IKnockbackable ============
@@ -146,7 +165,7 @@ namespace Brawler.Player
         /// <param name="velocity">World-space knockback velocity (units/s).</param>
         public void ApplyKnockback(Vector3 velocity)
         {
-            // TODO: set planar velocity from the knockback (set, not add). HitstunState decelerates it from there.
+            _context.Velocity = new Vector3(velocity.x, 0f, velocity.z);
         }
 
         // ============ Validation ============
