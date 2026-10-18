@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 namespace Brawler.Core
 {
     /// <summary>
@@ -15,6 +12,14 @@ namespace Brawler.Core
     /// </remarks>
     public sealed class FrameClock
     {
+        // ============ Constants ============
+
+        /// <summary>Float slack so a delta of exactly one (inexact) 1/60 always steps one frame.</summary>
+        private const float Epsilon = 1e-5f;
+
+        /// <summary>Most frames a single <see cref="Advance"/> call may step (one second; tests advance 1 s at once).</summary>
+        private const int MaxStepsPerAdvance = FrameTime.FramesPerSecond;
+
         // ============ State ============
 
         /// <summary>Whole frames elapsed since the last <see cref="Reset"/>.</summary>
@@ -30,8 +35,7 @@ namespace Brawler.Core
         {
             get
             {
-                // TODO: return _frame.
-                return 0;
+                return _frame;
             }
         }
 
@@ -42,20 +46,42 @@ namespace Brawler.Core
         /// <returns>Number of frames stepped by this call (0..n).</returns>
         public int Advance(float deltaSeconds)
         {
-            // TODO: standard fixed-step accumulator - add dt, peel off whole frames, keep the remainder.
-            // - dt <= 0 steps nothing. That's also what makes hitstop free: timeScale 0 -> dt 0 -> timelines freeze.
-            // - 1/60 isn't exact in float, so sixty Advance(1/60f) calls can land on 59. Small epsilon in the compare so a
-            //   one-frame delta always steps exactly one frame (there's a test for this).
-            // - Probably cap steps per call (~10) so an editor pause doesn't dump an entire attack into one tick.
-            // Ref: Glenn Fiedler, "Fix Your Timestep!" (Gaffer On Games) - same idea, counting frames instead of stepping physics.
-            return 0;
+            if (deltaSeconds <= 0f)
+            {
+                return 0;
+            }
+
+            _accumulator += deltaSeconds;
+
+            int steps = 0;
+            while (_accumulator + Epsilon >= FrameTime.SecondsPerFrame)
+            {
+                _accumulator -= FrameTime.SecondsPerFrame;
+                steps++;
+
+                // An editor pause or hitch shouldn't dump a whole attack into one tick.
+                if (steps >= MaxStepsPerAdvance)
+                {
+                    _accumulator = 0f;
+                    break;
+                }
+            }
+
+            // The epsilon can leave a tiny negative remainder; keep the documented [0, SecondsPerFrame) range.
+            if (_accumulator < 0f)
+            {
+                _accumulator = 0f;
+            }
+
+            _frame += steps;
+            return steps;
         }
 
         /// <summary>Restarts the timeline: <see cref="Frame"/> = 0 and the sub-frame remainder is discarded.</summary>
         public void Reset()
         {
-            // TODO: zero frame + accumulator. Called on every state Enter, including re-entering the same state
-            // (hitstun refresh, next attack in the chain).
+            _frame = 0;
+            _accumulator = 0f;
         }
     }
 }
