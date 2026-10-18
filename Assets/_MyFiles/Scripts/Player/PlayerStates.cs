@@ -16,6 +16,8 @@ namespace Brawler.Player
             Attack = new AttackState();
             Dash = new DashState();
             Hitstun = new HitstunState();
+            Air = new AirState();
+            WallSlide = new WallSlideState();
         }
 
         // ============ States ============
@@ -34,5 +36,11 @@ namespace Brawler.Player
 
         /// <summary>Hit reaction (re-entered on re-hit to refresh).</summary>
         public HitstunState Hitstun { get; }
+
+        /// <summary>Airborne: rising from a jump or falling.</summary>
+        public AirState Air { get; }
+
+        /// <summary>Holding onto / sliding down a wall.</summary>
+        public WallSlideState WallSlide { get; }
     }
 }
