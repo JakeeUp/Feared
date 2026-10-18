@@ -6,7 +6,8 @@
 // - ZWrite On + clip(alpha - _Cutoff): sorts against 3D geometry and other billboards by depth, no
 //   transparency sorting issues.
 // - Cull Off: sprites are visible from both sides and negative-scale flipping is safe.
-// - Simple half-lambert main light + SH ambient + fog. No shadows (actors use blob shadows).
+// - Simple half-lambert main light + SH ambient + fog. Casts directional shadows (alpha-clipped); does not
+//   receive them (actors also use blob shadows as contact shadows).
 // - SRP Batcher compatible (identical UnityPerMaterial CBUFFER in every pass), GPU instancing, WebGL2-safe.
 Shader "Brawler/SpriteAlphaClip"
 {
@@ -17,6 +18,7 @@ Shader "Brawler/SpriteAlphaClip"
         _Cutoff ("Alpha Cutoff", Range(0, 1)) = 0.5
         _AmbientStrength ("Ambient Strength", Range(0, 2)) = 1
         _Wrap ("Light Wrap (0 = lambert, 1 = half-lambert)", Range(0, 1)) = 0.5
+        _FlashColor ("Flash (rgb = colour, a = amount)", Color) = (1, 1, 1, 0)
 
         // Legacy properties SpriteRenderer may look for. Hidden.
         [HideInInspector] _RendererColor ("RendererColor", Color) = (1, 1, 1, 1)
@@ -52,6 +54,7 @@ Shader "Brawler/SpriteAlphaClip"
             half _Cutoff;
             half _AmbientStrength;
             half _Wrap;
+            half4 _FlashColor;
         CBUFFER_END
 
         // SpriteRenderer color/flip arrive per-draw in unity_SpriteColor / unity_SpriteProps (UnityPerDraw).
@@ -152,8 +155,75 @@ Shader "Brawler/SpriteAlphaClip"
                 half3 lighting = mainLight.color * (diffuse * mainLight.distanceAttenuation) + ambient;
 
                 half3 color = albedo.rgb * lighting;
+                color = lerp(color, _FlashColor.rgb, _FlashColor.a); // HitFlash
                 color = MixFog(color, input.fogFactor);
                 return half4(color, 1.0h);
+            }
+            ENDHLSL
+        }
+
+        // ============ ShadowCaster (sprites cast real directional shadows onto the 3D world) ============
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+            ZWrite On
+            ColorMask 0
+
+            HLSLPROGRAM
+            #pragma target 3.0
+            #pragma vertex ShadowVert
+            #pragma fragment ShadowFrag
+            #pragma multi_compile_instancing
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+
+            // Set by URP for the light currently rendering its shadow map (declared per pass, as in URP's ShadowCasterPass).
+            float3 _LightDirection;
+            float3 _LightPosition;
+
+            struct ShadowVaryings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv         : TEXCOORD0;
+                half4  color      : COLOR;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            ShadowVaryings ShadowVert(SpriteAttributes input)
+            {
+                ShadowVaryings output = (ShadowVaryings)0;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+
+                float3 positionWS = TransformObjectToWorld(FlipSprite(input.positionOS));
+                float3 normalWS = SpriteNormalWS();
+
+            #if _CASTING_PUNCTUAL_LIGHT_SHADOW
+                float3 lightDirectionWS = normalize(_LightPosition - positionWS);
+            #else
+                float3 lightDirectionWS = _LightDirection;
+            #endif
+
+                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+            #if UNITY_REVERSED_Z
+                positionCS.z = min(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+            #else
+                positionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+            #endif
+
+                output.positionCS = positionCS;
+                output.uv = TRANSFORM_TEX(input.uv, _MainTex);
+                output.color = input.color * _Color * BRAWLER_SPRITE_COLOR;
+                return output;
+            }
+
+            half4 ShadowFrag(ShadowVaryings input) : SV_Target
+            {
+                UNITY_SETUP_INSTANCE_ID(input);
+                clip(SampleSprite(input.uv, input.color).a - _Cutoff);
+                return 0;
             }
             ENDHLSL
         }
