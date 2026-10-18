@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using Brawler.Core;
 using UnityEngine;
 
@@ -49,6 +46,9 @@ namespace Brawler.Presentation
         /// <summary>The facing source in use, or null.</summary>
         public IFacingSource FacingSource => _facing;
 
+        /// <summary>Inverts the facing flip, for clips whose art is drawn facing the other way (set by animation drivers).</summary>
+        public bool Mirror { get; set; }
+
         // ============ Lifecycle ============
 
         private void Awake()
@@ -59,16 +59,32 @@ namespace Brawler.Presentation
 
         private void LateUpdate()
         {
-            // TODO: billboard + flip.
-            // - Rotation: copy the camera's rotation (or yaw-only if _matchCameraPitch is off - guard the straight-down case).
-            //   Copying rotation instead of LookAt(camera) is deliberate: LookAt makes sprites near the screen edges twist
-            //   differently from ones in the middle. With a fixed camera you want every sprite parallel to the view plane,
-            //   which is how the Paper Mario / Octopath look works. Real-Time Rendering's billboarding section covers the
-            //   difference (view-plane aligned vs viewpoint oriented).
-            // - Flip: SpriteRenderer.flipX from FacingSign rather than negative scale - doesn't mirror children or the shadow,
-            //   and doesn't mess with batching. Only write it when it actually changes.
-            // - Placeholder art faces right; if the real art faces left, invert the check.
-            // - Needs to run after CameraRig's LateUpdate (handled by DefaultExecutionOrder) or sprites lag a frame.
+            if (_cameraTransform != null)
+            {
+                // Copy rotation rather than LookAt so every sprite stays parallel to the view plane.
+                if (_matchCameraPitch)
+                {
+                    transform.rotation = _cameraTransform.rotation;
+                }
+                else
+                {
+                    Vector3 forward = Vector3.ProjectOnPlane(_cameraTransform.forward, Vector3.up);
+                    if (forward.sqrMagnitude > 1e-6f)
+                    {
+                        transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
+                    }
+                }
+            }
+
+            // Placeholder art faces right.
+            if (_facing != null && _spriteRenderer != null)
+            {
+                bool flip = (_facing.FacingSign < 0) != Mirror;
+                if (_spriteRenderer.flipX != flip)
+                {
+                    _spriteRenderer.flipX = flip;
+                }
+            }
         }
 
         // ============ Validation ============
