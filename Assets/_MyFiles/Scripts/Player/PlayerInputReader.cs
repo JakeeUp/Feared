@@ -1,5 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414, CS0067
 
 using System;
 using Brawler.Core;
@@ -32,17 +30,22 @@ namespace Brawler.Player
         [Tooltip("Gameplay/Attack — Button (J, mouse left, gamepad west). Raises CommandPressed(Attack) on performed.")]
         [SerializeField] private InputActionReference _attackAction;
 
-        [Tooltip("Gameplay/Dash — Button (K, Space, gamepad south). Raises CommandPressed(Dash) on performed.")]
+        [Tooltip("Gameplay/Dash — Button (Left Shift, K, gamepad east). Raises CommandPressed(Dash) on performed.")]
         [SerializeField] private InputActionReference _dashAction;
+
+        [Tooltip("Gameplay/Jump — Button (Space, gamepad south). Raises CommandPressed(Jump) on performed; held state drives variable jump height.")]
+        [SerializeField] private InputActionReference _jumpAction;
 
         // ============ Cached Delegates (no per-subscribe allocation) ============
 
         private Action<InputAction.CallbackContext> _onAttackPerformed;
         private Action<InputAction.CallbackContext> _onDashPerformed;
+        private Action<InputAction.CallbackContext> _onJumpPerformed;
 
         // ============ Runtime State ============
 
         private Vector2 _move;
+        private bool _jumpHeld;
 
         // ============ Events & Properties ============
 
@@ -52,6 +55,9 @@ namespace Brawler.Player
         /// <summary>Raw move input (-1..1 per axis, no deadzone), sampled each Update. X = right, Y = up/into screen.</summary>
         public Vector2 Move => _move;
 
+        /// <summary>True while the Jump button is held (sampled each Update). Releasing early shortens the jump.</summary>
+        public bool JumpHeld => _jumpHeld;
+
         // ============ Lifecycle ============
 
         private void Awake()
@@ -59,6 +65,7 @@ namespace Brawler.Player
             // Wiring: cache method-group delegates once so += / -= never allocate.
             _onAttackPerformed = OnAttackPerformed;
             _onDashPerformed = OnDashPerformed;
+            _onJumpPerformed = OnJumpPerformed;
         }
 
         private void OnEnable()
@@ -79,6 +86,12 @@ namespace Brawler.Player
             {
                 _dashAction.action.performed += _onDashPerformed;
                 _dashAction.action.Enable();
+            }
+
+            if (_jumpAction != null && _jumpAction.action != null)
+            {
+                _jumpAction.action.performed += _onJumpPerformed;
+                _jumpAction.action.Enable();
             }
         }
 
@@ -102,36 +115,49 @@ namespace Brawler.Player
                 _dashAction.action.Disable();
             }
 
+            if (_jumpAction != null && _jumpAction.action != null)
+            {
+                _jumpAction.action.performed -= _onJumpPerformed;
+                _jumpAction.action.Disable();
+            }
+
             _move = Vector2.zero;
+            _jumpHeld = false;
         }
 
         private void Update()
         {
-            // TODO: cache the raw Move vector (null-guard the reference). Keep it raw - deadzone and depth scaling are
-            // PlayerContext's job so they can come from settings.
-            // Execution order is already handled by [DefaultExecutionOrder], so this runs before PlayerController reads it.
+            // Raw on purpose: deadzone and depth scaling live in PlayerContext so they come from settings.
+            _move = _moveAction != null && _moveAction.action != null
+                ? _moveAction.action.ReadValue<Vector2>()
+                : Vector2.zero;
+            _jumpHeld = _jumpAction != null && _jumpAction.action != null && _jumpAction.action.IsPressed();
         }
 
         // ============ Input Callbacks ============
 
         private void OnAttackPerformed(InputAction.CallbackContext context)
         {
-            // TODO: raise CommandPressed(Attack). 'performed' fires once per press for a plain Button action.
-            // No timestamp here, PlayerController stamps it when it goes into the buffer.
+            CommandPressed?.Invoke(BufferedCommand.Attack);
         }
 
         private void OnDashPerformed(InputAction.CallbackContext context)
         {
-            // TODO: raise CommandPressed(Dash).
+            CommandPressed?.Invoke(BufferedCommand.Dash);
+        }
+
+        private void OnJumpPerformed(InputAction.CallbackContext context)
+        {
+            CommandPressed?.Invoke(BufferedCommand.Jump);
         }
 
         // ============ Validation ============
 
         private void OnValidate()
         {
-            if (_moveAction == null || _attackAction == null || _dashAction == null)
+            if (_moveAction == null || _attackAction == null || _dashAction == null || _jumpAction == null)
             {
-                Debug.LogWarning($"{nameof(PlayerInputReader)} on '{name}': assign Move/Attack/Dash InputActionReferences (BrawlerControls › Gameplay).", this);
+                Debug.LogWarning($"{nameof(PlayerInputReader)} on '{name}': assign Move/Attack/Dash/Jump InputActionReferences (BrawlerControls › Gameplay).", this);
             }
         }
     }

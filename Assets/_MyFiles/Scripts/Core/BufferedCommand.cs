@@ -11,5 +11,8 @@ namespace Brawler.Core
 
         /// <summary>Dash (grants i-frames).</summary>
         Dash = 2,
+
+        /// <summary>Jump (also wall jump while on a wall).</summary>
+        Jump = 3,
     }
 }
