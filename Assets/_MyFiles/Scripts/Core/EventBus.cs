@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -56,32 +53,100 @@ namespace Brawler.Core
         /// <inheritdoc />
         public void Subscribe<T>(Action<T> listener) where T : struct, IEvent
         {
-            // TODO: get-or-create the List<Action<T>> for typeof(T) and append the listener.
-            // - Ignore null and duplicates. Delegate equality compares target + method, so this only works if callers
-            //   cache their handler in a field (a fresh lambda every OnEnable would never match on Unsubscribe).
-            // - Append, don't insert - that's what gives "subscribed mid-publish -> first called on the next publish",
-            //   since Publish only walks the count it saw when it started.
+            if (listener == null)
+            {
+                return;
+            }
+
+            List<Action<T>> listeners;
+            if (_listenersByType.TryGetValue(typeof(T), out object boxed))
+            {
+                listeners = (List<Action<T>>)boxed;
+            }
+            else
+            {
+                listeners = new List<Action<T>>(InitialListenerCapacity);
+                _listenersByType.Add(typeof(T), listeners);
+            }
+
+            if (listeners.Contains(listener))
+            {
+                return;
+            }
+
+            // Append: Publish only walks the count it snapshotted, so mid-publish subscribers start next publish.
+            listeners.Add(listener);
         }
 
         /// <inheritdoc />
         public void Unsubscribe<T>(Action<T> listener) where T : struct, IEvent
         {
-            // TODO: remove the listener, keep everyone else's order.
-            // - Unknown type/listener is a no-op, never an exception (OnDisable order is unpredictable on scene unload).
-            // - Inside a Publish (_publishDepth > 0) don't RemoveAt - it shifts the list under the loop and someone gets
-            //   skipped or called twice. Null the slot and flag it for compaction instead.
+            if (listener == null || !_listenersByType.TryGetValue(typeof(T), out object boxed))
+            {
+                return;
+            }
+
+            var listeners = (List<Action<T>>)boxed;
+            int index = listeners.IndexOf(listener);
+            if (index < 0)
+            {
+                return;
+            }
+
+            if (_publishDepth > 0)
+            {
+                // Removing would shift the list under the running loop.
+                listeners[index] = null;
+                _needsCompaction = true;
+            }
+            else
+            {
+                listeners.RemoveAt(index);
+            }
         }
 
         /// <inheritdoc />
         public void Publish<T>(in T evt) where T : struct, IEvent
         {
-            // TODO: call every live listener for T in subscription order.
-            // - No list for T -> return. This path can't allocate, it runs on every hit.
-            // - Snapshot Count before the loop and use a plain for (foreach throws if a listener unsubscribes); skip nulls.
-            // - try/catch + Debug.LogException around each call so one broken listener doesn't eat the rest.
-            // - Bump _publishDepth around the loop (decrement in a finally) so a listener publishing something else is
-            //   safe; compact once the outermost publish unwinds.
-            // Ref: Nystrom, Game Programming Patterns, "Observer" - the bit on removing observers mid-notify is exactly this.
+            if (!_listenersByType.TryGetValue(typeof(T), out object boxed))
+            {
+                return;
+            }
+
+            var listeners = (List<Action<T>>)boxed;
+            int count = listeners.Count;
+
+            _publishDepth++;
+            try
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    Action<T> listener = listeners[i];
+                    if (listener == null)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        listener(evt);
+                    }
+                    catch (Exception exception)
+                    {
+                        Debug.LogException(exception);
+                    }
+                }
+            }
+            finally
+            {
+                _publishDepth--;
+            }
+
+            if (_publishDepth == 0 && _needsCompaction)
+            {
+                Compact(listeners);
+                _needsCompaction = false;
+            }
         }
 
         // ============ API ============
@@ -89,10 +154,8 @@ namespace Brawler.Core
         /// <summary>Removes every listener of every event type. Called by <see cref="EventBusAsset"/> on disable.</summary>
         public void Clear()
         {
-            // TODO: drop everything (clearing the dictionary is enough - an in-flight Publish holds its own list ref
-            // and just finishes). Reset _needsCompaction too.
-            // Matters more than it looks: Enter Play Mode Options has domain reload OFF in this project, so the bus asset
-            // survives between play sessions and would otherwise keep last run's listeners around.
+            _listenersByType.Clear();
+            _needsCompaction = false;
         }
 
         /// <summary>Number of live listeners currently subscribed to <typeparamref name="T"/> (test hook).</summary>
@@ -100,15 +163,42 @@ namespace Brawler.Core
         /// <returns>Count of non-null listeners for <typeparamref name="T"/>; 0 if the type was never subscribed.</returns>
         public int GetListenerCount<T>() where T : struct, IEvent
         {
-            // TODO: count non-null entries only (slots nulled mid-publish shouldn't count). 0 if T was never seen.
-            return 0;
+            if (!_listenersByType.TryGetValue(typeof(T), out object boxed))
+            {
+                return 0;
+            }
+
+            var listeners = (List<Action<T>>)boxed;
+            int count = 0;
+            for (int i = 0; i < listeners.Count; i++)
+            {
+                if (listeners[i] != null)
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         // ============ Helpers ============
 
-        // TODO: compaction for the nulled slots.
-        // List.RemoveAll(predicate) is the obvious one-liner but allocates a delegate per call. A read/write cursor pass
-        // followed by RemoveRange on the tail is allocation-free. Easiest spot is the end of Publish<T> where T is known;
-        // stray nulls left in other types' lists are harmless and get cleaned on that type's next publish.
+        /// <summary>Allocation-free removal of slots nulled mid-publish, preserving order.</summary>
+        private static void Compact<T>(List<Action<T>> listeners)
+        {
+            int write = 0;
+            for (int read = 0; read < listeners.Count; read++)
+            {
+                if (listeners[read] != null)
+                {
+                    listeners[write++] = listeners[read];
+                }
+            }
+
+            if (write < listeners.Count)
+            {
+                listeners.RemoveRange(write, listeners.Count - write);
+            }
+        }
     }
 }
