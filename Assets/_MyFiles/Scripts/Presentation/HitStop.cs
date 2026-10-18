@@ -1,6 +1,3 @@
-// Most private fields aren't touched until the TODOs below are filled in. Drop this pragma once they are.
-#pragma warning disable CS0169, CS0649, CS0414
-
 using System;
 using Brawler.Combat;
 using Brawler.Core;
@@ -76,15 +73,26 @@ namespace Brawler.Presentation
                 _eventBus.Unsubscribe(_onHit);
             }
 
-            // TODO: if a freeze is active, restore timeScale and clear state. Important - otherwise getting disabled mid-freeze
-            // (scene change, leaving play mode with domain reload off) leaves the whole game stuck at timeScale 0.
+            // Otherwise a disable mid-freeze leaves the whole game stuck at timeScale 0.
+            if (_isActive)
+            {
+                Restore();
+            }
         }
 
         private void Update()
         {
-            // TODO: count down on unscaled time and restore timeScale when it runs out.
-            // Never Time.deltaTime here - it's 0 during the freeze, so the freeze would never end. unscaledDeltaTime can spike
-            // (breakpoint, tabbing away in WebGL); that just ends the hitstop early, which is fine.
+            if (!_isActive)
+            {
+                return;
+            }
+
+            // Unscaled: deltaTime is 0 during the freeze, so it would never end.
+            _remaining -= Time.unscaledDeltaTime;
+            if (_remaining <= 0f)
+            {
+                Restore();
+            }
         }
 
         // ============ API ============
@@ -96,15 +104,21 @@ namespace Brawler.Presentation
         /// <param name="seconds">Real (unscaled) seconds to freeze. &lt;= 0 is ignored.</param>
         public void Trigger(float seconds)
         {
-            // TODO: start or extend the freeze.
-            // - Clamp to MaxHitStopSeconds.
-            // - Capture the timeScale to restore ONLY on the first trigger - a second hit mid-freeze would capture 0 and
-            //   "restore" to 0 forever.
-            // - Take the max of remaining and new, not the sum. Three targets in one swing shouldn't triple the freeze.
-            // - Don't touch fixedDeltaTime, timeScale 0 already stops FixedUpdate.
-            // Later, if a pause menu also writes timeScale, everything should go through one place.
-            // Ref: Masahiro Sakurai's "Creating Games" video on hitstop is the best short explanation of why this matters;
-            // Vlambeer's "The Art of Screenshake" talk covers it too (they call it sleep).
+            if (seconds <= 0f || _settings == null)
+            {
+                return;
+            }
+
+            // Capture only on the first trigger; a mid-freeze capture would read 0 and restore to 0 forever.
+            if (!_isActive)
+            {
+                _restoreTimeScale = Time.timeScale;
+                _isActive = true;
+            }
+
+            // Max, not sum: one swing hitting three targets shouldn't triple the freeze.
+            _remaining = Mathf.Max(_remaining, Mathf.Min(seconds, _settings.MaxHitStopSeconds));
+            Time.timeScale = _settings.HitStopTimeScale;
         }
 
         // ============ Event Handlers ============
@@ -113,7 +127,16 @@ namespace Brawler.Presentation
         /// <param name="evt">The hit.</param>
         private void OnHit(HitEvent evt)
         {
-            // TODO: trigger with the event's hitstop frames converted via FrameTime (60 Hz frame-data units, not fixedDeltaTime).
+            Trigger(FrameTime.ToSeconds(evt.HitStopFrames));
+        }
+
+        // ============ Helpers ============
+
+        private void Restore()
+        {
+            Time.timeScale = _restoreTimeScale;
+            _remaining = 0f;
+            _isActive = false;
         }
     }
 }
