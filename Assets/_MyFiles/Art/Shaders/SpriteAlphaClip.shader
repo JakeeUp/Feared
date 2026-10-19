@@ -5,6 +5,14 @@
 //   Sprite-Unlit-Default so flip/color behave the same.
 // - ZWrite On + clip(alpha - _Cutoff): sorts against 3D geometry and other billboards by depth, no
 //   transparency sorting issues.
+// - View-space depth bias (_DepthBias, world units): Forward/DepthOnly/DepthNormals move each vertex's DEPTH
+//   toward the camera by _DepthBias along the view axis, keeping clip xy/w unchanged, so the sprite's on-screen
+//   position and size are untouched. A flat billboard on a character ~0.5 deep otherwise slices through nearby
+//   3D geometry (walls behind it, platform faces, the floor) and loses half its pixels to the depth test; with the
+//   bias it wins against anything within _DepthBias behind its plane and is still hidden by geometry more than
+//   _DepthBias in front of it. Computed through the projection matrix, so it is correct for perspective and
+//   orthographic cameras and independent of UNITY_REVERSED_Z. Clamped so a vertex is never pulled past the
+//   near plane. NOT applied in ShadowCaster (cast shadows stay where the sprite really is).
 // - Cull Off: sprites are visible from both sides and negative-scale flipping is safe.
 // - Simple half-lambert main light + SH ambient + fog. Casts directional shadows (alpha-clipped); does not
 //   receive them (actors also use blob shadows as contact shadows).
@@ -19,6 +27,7 @@ Shader "Brawler/SpriteAlphaClip"
         _AmbientStrength ("Ambient Strength", Range(0, 2)) = 1
         _Wrap ("Light Wrap (0 = lambert, 1 = half-lambert)", Range(0, 1)) = 0.5
         _FlashColor ("Flash (rgb = colour, a = amount)", Color) = (1, 1, 1, 0)
+        _DepthBias ("Depth Bias Toward Camera (world units)", Range(0, 2)) = 0.5
 
         // Legacy properties SpriteRenderer may look for. Hidden.
         [HideInInspector] _RendererColor ("RendererColor", Color) = (1, 1, 1, 1)
@@ -55,6 +64,7 @@ Shader "Brawler/SpriteAlphaClip"
             half _AmbientStrength;
             half _Wrap;
             half4 _FlashColor;
+            float _DepthBias;
         CBUFFER_END
 
         // SpriteRenderer color/flip arrive per-draw in unity_SpriteColor / unity_SpriteProps (UnityPerDraw).
@@ -88,6 +98,29 @@ Shader "Brawler/SpriteAlphaClip"
         float3 SpriteNormalWS()
         {
             return TransformObjectToWorldNormal(float3(0.0, 0.0, -1.0));
+        }
+
+        // Clip-space position with only the depth pulled _DepthBias toward the camera (see header).
+        // positionCS.xyw stay exactly as TransformWorldToHClip makes them, so rasterized pixels and perspective-correct
+        // interpolation are unchanged; z is replaced by the biased point's NDC depth rescaled by the original w.
+        // Projected depth depends only on view-space z for both perspective and orthographic matrices, so moving the
+        // view-space z alone is enough, and going through the projection matrix keeps reversed-Z/GL conventions right.
+        float4 SpriteObjectToHClipDepthBiased(float3 positionOS)
+        {
+            float3 positionWS = TransformObjectToWorld(positionOS);
+            float4 positionCS = TransformWorldToHClip(positionWS);
+
+            // Unity view space looks down -Z: distance in front of the camera is -positionVS.z.
+            float3 positionVS = TransformWorldToView(positionWS);
+            float viewDepth = -positionVS.z;
+            float nearLimit = _ProjectionParams.y + 0.001;
+            if (viewDepth > nearLimit)
+            {
+                float biasedDepth = max(viewDepth - _DepthBias, nearLimit);
+                float4 biasedCS = TransformWViewToHClip(float3(positionVS.xy, -biasedDepth));
+                positionCS.z = biasedCS.z * (positionCS.w / biasedCS.w);
+            }
+            return positionCS;
         }
 
         half4 SampleSprite(float2 uv, half4 vertexColor)
@@ -130,11 +163,12 @@ Shader "Brawler/SpriteAlphaClip"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
                 float3 positionOS = FlipSprite(input.positionOS);
-                output.positionCS = TransformObjectToHClip(positionOS);
+                // Fog uses the true (unbiased) depth so the bias never changes a sprite's fog amount.
+                output.fogFactor = ComputeFogFactor(TransformObjectToHClip(positionOS).z);
+                output.positionCS = SpriteObjectToHClipDepthBiased(positionOS);
                 output.uv = TRANSFORM_TEX(input.uv, _MainTex);
                 output.color = input.color * _Color * BRAWLER_SPRITE_COLOR;
                 output.normalWS = (half3)SpriteNormalWS();
-                output.fogFactor = ComputeFogFactor(output.positionCS.z);
                 return output;
             }
 
@@ -179,6 +213,7 @@ Shader "Brawler/SpriteAlphaClip"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
+            // No _DepthBias here: shadows are cast from the sprite's real position.
             // Set by URP for the light currently rendering its shadow map (declared per pass, as in URP's ShadowCasterPass).
             float3 _LightDirection;
             float3 _LightPosition;
@@ -258,7 +293,8 @@ Shader "Brawler/SpriteAlphaClip"
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                output.positionCS = TransformObjectToHClip(FlipSprite(input.positionOS));
+                // Same biased depth as Forward: depth priming (ZTest Equal) and the depth texture must match it.
+                output.positionCS = SpriteObjectToHClipDepthBiased(FlipSprite(input.positionOS));
                 output.uv = TRANSFORM_TEX(input.uv, _MainTex);
                 output.color = input.color * _Color * BRAWLER_SPRITE_COLOR;
                 return output;
@@ -304,7 +340,7 @@ Shader "Brawler/SpriteAlphaClip"
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                output.positionCS = TransformObjectToHClip(FlipSprite(input.positionOS));
+                output.positionCS = SpriteObjectToHClipDepthBiased(FlipSprite(input.positionOS));
                 output.uv = TRANSFORM_TEX(input.uv, _MainTex);
                 output.color = input.color * _Color * BRAWLER_SPRITE_COLOR;
                 output.normalWS = (half3)SpriteNormalWS();

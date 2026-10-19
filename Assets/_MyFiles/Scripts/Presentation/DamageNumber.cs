@@ -27,6 +27,10 @@ namespace Brawler.Presentation
         [Tooltip("TextMesh that displays the number (on this GameObject). Its MeshRenderer uses the font's material.")]
         [SerializeField] private TextMesh _text;
 
+        [Header("Depth")]
+        [Tooltip("Units to push the number toward the camera (against the facing rotation's forward) so it is never cut by walls or hidden behind the depth-biased sprites it pops out of (the TextMesh font material is depth-tested). 0 = off.")]
+        [SerializeField, Min(0f)] private float _cameraPull = 1f;
+
         // ============ State ============
 
         /// <summary>Owning pool; injected once by <see cref="Initialize"/>.</summary>
@@ -128,6 +132,10 @@ namespace Brawler.Presentation
             // Wiring: constructor-style dependency injection.
             _pool = pool;
             _settings = settings;
+            if (settings != null)
+            {
+                _baseScale *= settings.DamageNumberScale;
+            }
         }
 
         /// <summary>Starts showing <paramref name="amount"/> at <paramref name="position"/> facing <paramref name="rotation"/>.</summary>
@@ -142,8 +150,9 @@ namespace Brawler.Presentation
                 _text.color = _baseColor;
             }
 
-            _startPosition = position;
-            transform.SetPositionAndRotation(position, rotation);
+            // The facing rotation is the camera's, so -forward points at the camera.
+            _startPosition = position - rotation * Vector3.forward * _cameraPull;
+            transform.SetPositionAndRotation(_startPosition, rotation);
             transform.localScale = _baseScale * PunchScale;
             _elapsed = 0f;
             _isReleased = false;

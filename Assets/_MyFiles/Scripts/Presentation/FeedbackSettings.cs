@@ -15,15 +15,21 @@ namespace Brawler.Presentation
         [Tooltip("Upper bound on a single hitstop, in real (unscaled) seconds. Overlapping hitstops take the max remaining, never sum past this.")]
         [SerializeField, Min(0f)] private float _maxHitStopSeconds = 0.25f;
 
+        [Tooltip("Real seconds of slow motion after a parry's freeze, easing back to full speed. 0 = snap straight back.")]
+        [SerializeField, Min(0f)] private float _parrySlowSeconds = 0.2f;
+
+        [Tooltip("Time.timeScale at the start of the parry slow-motion tail.")]
+        [SerializeField, Range(0.05f, 1f)] private float _parrySlowTimeScale = 0.3f;
+
         [Header("Screen Shake")]
         [Tooltip("Max positional offset in units at trauma 1.")]
-        [SerializeField, Min(0f)] private float _shakeMaxOffset = 0.3f;
+        [SerializeField, Min(0f)] private float _shakeMaxOffset = 0.35f;
 
         [Tooltip("Perlin noise frequency (Hz-ish). Higher = more jittery.")]
-        [SerializeField, Min(0f)] private float _shakeFrequency = 25f;
+        [SerializeField, Min(0f)] private float _shakeFrequency = 30f;
 
         [Tooltip("Trauma lost per real second. Shake runs on unscaled time so it plays through hitstop.")]
-        [SerializeField, Min(0f)] private float _traumaDecayPerSecond = 2f;
+        [SerializeField, Min(0f)] private float _traumaDecayPerSecond = 3f;
 
         [Header("Damage Numbers")]
         [Tooltip("Seconds a damage number is visible before returning to the pool (unscaled).")]
@@ -37,6 +43,12 @@ namespace Brawler.Presentation
 
         [Tooltip("Random horizontal spread (units) so stacked hits don't overlap exactly.")]
         [SerializeField, Min(0f)] private float _damageNumberSpread = 0.25f;
+
+        [Tooltip("Max random vertical offset (units) so consecutive numbers don't stack on one line.")]
+        [SerializeField, Min(0f)] private float _damageNumberHeightSpread = 0.25f;
+
+        [Tooltip("Size multiplier on the damage-number prefab.")]
+        [SerializeField, Min(0.05f)] private float _damageNumberScale = 0.55f;
 
         [Tooltip("ObjectPool default capacity (prewarm size).")]
         [SerializeField, Min(1)] private int _damageNumberPoolCapacity = 16;
@@ -55,6 +67,12 @@ namespace Brawler.Presentation
         /// <summary>Max shake offset at trauma 1.</summary>
         public float ShakeMaxOffset => _shakeMaxOffset;
 
+        /// <summary>Parry slow-motion tail length (unscaled seconds).</summary>
+        public float ParrySlowSeconds => _parrySlowSeconds;
+
+        /// <summary>Time scale at the start of the parry slow-motion tail.</summary>
+        public float ParrySlowTimeScale => _parrySlowTimeScale;
+
         /// <summary>Shake noise frequency.</summary>
         public float ShakeFrequency => _shakeFrequency;
 
@@ -72,6 +90,12 @@ namespace Brawler.Presentation
 
         /// <summary>Damage number random spread.</summary>
         public float DamageNumberSpread => _damageNumberSpread;
+
+        /// <summary>Max random vertical offset for damage numbers (units).</summary>
+        public float DamageNumberHeightSpread => _damageNumberHeightSpread;
+
+        /// <summary>Damage-number size multiplier.</summary>
+        public float DamageNumberScale => _damageNumberScale;
 
         /// <summary>Damage number pool default capacity.</summary>
         public int DamageNumberPoolCapacity => _damageNumberPoolCapacity;

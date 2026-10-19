@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Vfx_Land
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: 95396fbc270d5e9419166dcadf4789f5, type: 3}
+  - {fileID: 21300000, guid: 4ce8a53ba658fe246a3d12aa05af031e, type: 3}
+  - {fileID: 21300000, guid: ba53ae2522b52db4e8468b6e68c8d576, type: 3}
+  - {fileID: 21300000, guid: a0c5fc68817b70d4da95d9c9c2582ff6, type: 3}
+  - {fileID: 21300000, guid: b64def55f639a4540b0299222e653c65, type: 3}
+  - {fileID: 21300000, guid: 4cbddc933b8b769488bb1cac8dac5a92, type: 3}
+  - {fileID: 21300000, guid: e931e10c0c2faab4fb28b4dc3a01ecea, type: 3}
+  - {fileID: 21300000, guid: fd35528ae36166346a634f3d5ee9e5b8, type: 3}
+  - {fileID: 21300000, guid: 6690084413b3690429712ddf7adcdc3e, type: 3}
+  - {fileID: 21300000, guid: fcac1464a2ea8494cb819a18c99a20ef, type: 3}
+  - {fileID: 21300000, guid: 56febfbd67e355c4ea0b038035d02212, type: 3}
+  - {fileID: 21300000, guid: 4fb7c73af0e03a147ae19c2374768011, type: 3}
+  - {fileID: 21300000, guid: 97f1170a5c975064197c062bcdb3f7f3, type: 3}
+  - {fileID: 21300000, guid: c2dc567d6ee59274399f8984a21907ef, type: 3}
+  _framesPerSecond: 20
+  _loop: 0
+  _mirrored: 0

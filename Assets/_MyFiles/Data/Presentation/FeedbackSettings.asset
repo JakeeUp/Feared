@@ -14,12 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.FeedbackSettings
   _hitStopTimeScale: 0
   _maxHitStopSeconds: 0.25
-  _shakeMaxOffset: 0.3
-  _shakeFrequency: 25
-  _traumaDecayPerSecond: 2
+  _parrySlowSeconds: 0.2
+  _parrySlowTimeScale: 0.3
+  _shakeMaxOffset: 0.35
+  _shakeFrequency: 30
+  _traumaDecayPerSecond: 3
   _damageNumberLifetime: 0.7
-  _damageNumberRise: 1.2
-  _damageNumberSpawnOffset: {x: 0, y: 0.5, z: 0}
-  _damageNumberSpread: 0.25
+  _damageNumberRise: 0.6
+  _damageNumberSpawnOffset: {x: 0, y: 0.25, z: 0}
+  _damageNumberSpread: 0.35
   _damageNumberPoolCapacity: 16
   _damageNumberPoolMaxSize: 64

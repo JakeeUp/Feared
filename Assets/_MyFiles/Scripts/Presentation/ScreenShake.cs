@@ -23,7 +23,7 @@ namespace Brawler.Presentation
         // ============ Serialized Fields ============
 
         [Header("References")]
-        [Tooltip("Shared event bus asset (Data/Core/EventBus.asset). Listens for HitEvent.")]
+        [Tooltip("Shared event bus asset (Data/Core/EventBus.asset). Listens for HitEvent and ParryEvent.")]
         [SerializeField] private EventBusAsset _eventBus;
 
         [Tooltip("Shake amplitude, frequency and decay.")]
@@ -37,11 +37,16 @@ namespace Brawler.Presentation
         /// <summary>Current trauma, 0..1.</summary>
         private float _trauma;
 
+        /// <summary>Time.frameCount of the last <see cref="AddTrauma"/>, and the largest amount added on that frame.</summary>
+        private int _addFrame = -1;
+        private float _addedThisFrame;
+
         /// <summary>Accumulated unscaled time × frequency used to sample the noise (advance in LateUpdate).</summary>
         private float _noiseTime;
 
         /// <summary>Cached delegate so subscribe/unsubscribe don't allocate and match by reference.</summary>
         private Action<HitEvent> _onHit;
+        private Action<ParryEvent> _onParry;
 
         // ============ Properties ============
 
@@ -56,6 +61,7 @@ namespace Brawler.Presentation
         private void Awake()
         {
             _onHit = OnHit;
+            _onParry = OnParry;
         }
 
         private void OnEnable()
@@ -63,6 +69,7 @@ namespace Brawler.Presentation
             if (_eventBus != null)
             {
                 _eventBus.Subscribe(_onHit);
+                _eventBus.Subscribe(_onParry);
             }
         }
 
@@ -71,6 +78,7 @@ namespace Brawler.Presentation
             if (_eventBus != null)
             {
                 _eventBus.Unsubscribe(_onHit);
+                _eventBus.Unsubscribe(_onParry);
             }
 
             _trauma = 0f;
@@ -111,7 +119,10 @@ namespace Brawler.Presentation
 
         // ============ API ============
 
-        /// <summary>Adds trauma, clamped to 0..1. Larger hits add more; trauma decays over unscaled time.</summary>
+        /// <summary>
+        /// Adds trauma, clamped to 0..1. Larger hits add more; trauma decays over unscaled time. Calls on the same
+        /// frame take the max, not the sum, so one swing through a crowd shakes like one hit.
+        /// </summary>
         /// <param name="amount">Trauma to add (0..1). Negative values are ignored.</param>
         public void AddTrauma(float amount)
         {
@@ -120,7 +131,20 @@ namespace Brawler.Presentation
                 return;
             }
 
-            _trauma = Mathf.Clamp01(_trauma + amount);
+            if (Time.frameCount != _addFrame)
+            {
+                _addFrame = Time.frameCount;
+                _addedThisFrame = 0f;
+            }
+
+            float extra = amount - _addedThisFrame;
+            if (extra <= 0f)
+            {
+                return;
+            }
+
+            _addedThisFrame = amount;
+            _trauma = Mathf.Clamp01(_trauma + extra);
         }
 
         // ============ Event Handlers ============
@@ -128,6 +152,12 @@ namespace Brawler.Presentation
         /// <summary>HitEvent listener: shake by the attack's ScreenShake value.</summary>
         /// <param name="evt">The hit.</param>
         private void OnHit(HitEvent evt)
+        {
+            AddTrauma(evt.ScreenShake);
+        }
+
+        /// <summary>ParryEvent listener.</summary>
+        private void OnParry(ParryEvent evt)
         {
             AddTrauma(evt.ScreenShake);
         }

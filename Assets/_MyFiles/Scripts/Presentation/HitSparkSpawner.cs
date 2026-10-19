@@ -7,6 +7,7 @@ namespace Brawler.Presentation
 {
     /// <summary>
     /// Plays a one-shot impact effect (e.g. SlashFX) at the contact point of every <see cref="HitEvent"/>.
+    /// Parries have their own effect (<see cref="ParryFlash"/>).
     /// Keeps a small fixed ring of sprite objects created in Awake, so a hit never allocates; the oldest spark is
     /// reused when they are all busy. Sparks face the screen and are mirrored by the knockback direction.
     /// </summary>
@@ -32,8 +33,8 @@ namespace Brawler.Presentation
         [Tooltip("How many sparks can be on screen at once.")]
         [SerializeField, Min(1)] private int _capacity = 8;
 
-        [Tooltip("Pulls the spark toward the camera (units) so it draws over the target it hit.")]
-        [SerializeField, Min(0f)] private float _towardCamera = 0.2f;
+        [Tooltip("Pulls the spark toward the camera (units) so it draws over the target it hit. Keep >= 0.6: character sprites pull their depth up to 0.5 toward the camera.")]
+        [SerializeField, Min(0f)] private float _towardCamera = 0.65f;
 
         // ============ State ============
 
@@ -97,6 +98,12 @@ namespace Brawler.Presentation
 
         private void OnHit(HitEvent evt)
         {
+            // Sweep in the direction the target is knocked.
+            Spawn(evt.Damage.HitPoint, evt.Damage.Knockback.x < 0f, Color.white);
+        }
+
+        private void Spawn(Vector3 point, bool flip, Color tint)
+        {
             if (_clips.Length == 0)
             {
                 return;
@@ -114,10 +121,10 @@ namespace Brawler.Presentation
 
             Quaternion rotation = _cameraTransform != null ? _cameraTransform.rotation : Quaternion.identity;
             Vector3 toCamera = _cameraTransform != null ? -_cameraTransform.forward : Vector3.back;
-            spark.transform.SetPositionAndRotation(evt.Damage.HitPoint + toCamera * _towardCamera, rotation);
+            spark.transform.SetPositionAndRotation(point + toCamera * _towardCamera, rotation);
 
-            // Sweep in the direction the target is knocked.
-            spark.Renderer.flipX = (evt.Damage.Knockback.x < 0f) != clip.Mirrored;
+            spark.Renderer.flipX = flip != clip.Mirrored;
+            spark.Renderer.color = tint;
             spark.Renderer.enabled = true;
             spark.Play(clip, true);
         }

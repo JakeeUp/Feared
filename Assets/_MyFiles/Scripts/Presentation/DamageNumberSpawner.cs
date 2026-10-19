@@ -13,6 +13,21 @@ namespace Brawler.Presentation
     [DisallowMultipleComponent]
     public sealed class DamageNumberSpawner : MonoBehaviour
     {
+        // ============ Constants ============
+
+        /// <summary>Normalized screen-plane offsets visited in turn (x by Spread, y by HeightSpread).</summary>
+        private static readonly Vector2[] SlotPattern =
+        {
+            new Vector2(0f, 0f),
+            new Vector2(-1f, 0.6f),
+            new Vector2(1f, -0.3f),
+            new Vector2(-0.5f, -0.8f),
+            new Vector2(0.6f, 1f),
+        };
+
+        /// <summary>Random jitter added to each slot, in the same normalized units.</summary>
+        private const float SlotJitter = 0.25f;
+
         // ============ Serialized Fields ============
 
         [Header("References")]
@@ -35,6 +50,9 @@ namespace Brawler.Presentation
 
         /// <summary>Cached delegate so subscribe/unsubscribe don't allocate and match by reference.</summary>
         private Action<HitEvent> _onHit;
+
+        /// <summary>Cycles through <see cref="SlotPattern"/> so back-to-back numbers land in different spots.</summary>
+        private int _slot;
 
         // ============ Properties ============
 
@@ -99,11 +117,16 @@ namespace Brawler.Presentation
                 return;
             }
 
-            // Spread along camera right so it reads the same at any yaw.
+            // Spread on the screen plane (camera right/up) so it reads the same at any yaw. A fixed slot pattern guarantees
+            // consecutive numbers separate; a little jitter on top keeps it from looking like a grid.
             Vector3 right = _cameraTransform != null ? _cameraTransform.right : Vector3.right;
+            Vector3 up = _cameraTransform != null ? _cameraTransform.up : Vector3.up;
             Quaternion rotation = _cameraTransform != null ? _cameraTransform.rotation : Quaternion.identity;
-            float spread = UnityEngine.Random.Range(-_settings.DamageNumberSpread, _settings.DamageNumberSpread);
-            Vector3 position = worldPosition + _settings.DamageNumberSpawnOffset + right * spread;
+            Vector2 slot = SlotPattern[_slot];
+            _slot = (_slot + 1) % SlotPattern.Length;
+            float x = (slot.x + UnityEngine.Random.Range(-SlotJitter, SlotJitter)) * _settings.DamageNumberSpread;
+            float y = (slot.y + UnityEngine.Random.Range(-SlotJitter, SlotJitter)) * _settings.DamageNumberHeightSpread;
+            Vector3 position = worldPosition + _settings.DamageNumberSpawnOffset + right * x + up * y;
 
             _pool.Get().Play(amount, position, rotation);
         }

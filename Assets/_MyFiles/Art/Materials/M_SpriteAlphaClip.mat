@@ -35,6 +35,7 @@ Material:
     m_Floats:
     - _AmbientStrength: 1
     - _Cutoff: 0.5
+    - _DepthBias: 0.5
     - _EnableExternalAlpha: 0
     - _Wrap: 0.5
     m_Colors:

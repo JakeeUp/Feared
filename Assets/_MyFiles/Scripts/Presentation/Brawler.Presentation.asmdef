@@ -1,7 +1,7 @@
 {
     "name": "Brawler.Presentation",
     "rootNamespace": "Brawler.Presentation",
-    "references": ["Brawler.Core", "Brawler.Combat"],
+    "references": ["Brawler.Core", "Brawler.Combat", "Brawler.Progression", "UnityEngine.UI", "Unity.InputSystem"],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
