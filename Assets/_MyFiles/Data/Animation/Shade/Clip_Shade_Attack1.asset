@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Shade_Attack1
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: c0dbabb173edd504681e4419417d4591, type: 3}
+  - {fileID: 21300000, guid: 1107b1e44dccf9a4abec9305b2ca8be8, type: 3}
+  - {fileID: 21300000, guid: ed20ac234a3caea44a079ff02d3b0938, type: 3}
+  - {fileID: 21300000, guid: de928211bf4a6bc4d94427d5af1a2859, type: 3}
+  - {fileID: 21300000, guid: a86df0099dd7a0249974aa26ad95aa2d, type: 3}
+  - {fileID: 21300000, guid: 742998abb4da48f4482abfebeec26c04, type: 3}
+  - {fileID: 21300000, guid: 1c8b14d2c9a70a14ebdcfe10479ab988, type: 3}
+  - {fileID: 21300000, guid: 0302e6e3d0348884885c5cd019ff8665, type: 3}
+  - {fileID: 21300000, guid: 28779a7d6921dc14ea0f794d3a06887a, type: 3}
+  - {fileID: 21300000, guid: edb2512339d5b5140857a39edb5af359, type: 3}
+  _framesPerSecond: 12
+  _loop: 0
+  _mirrored: 0

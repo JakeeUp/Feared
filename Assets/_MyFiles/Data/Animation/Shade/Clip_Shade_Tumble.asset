@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Shade_Tumble
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: f4da0807fe9c3c04c8b64c0ec1aac78d, type: 3}
+  - {fileID: 21300000, guid: 689a556e3bdd32a4a9b15fa4f24b36f9, type: 3}
+  - {fileID: 21300000, guid: f7a0012856af0cb418cc98ecabef12e8, type: 3}
+  - {fileID: 21300000, guid: a86400d1d1663d94a8bf2248bada9e6e, type: 3}
+  - {fileID: 21300000, guid: 2cdb4fb3a1134604ea390ed7fec7e915, type: 3}
+  - {fileID: 21300000, guid: 717d0a3cb6c23f14e9e49af8acb823d9, type: 3}
+  - {fileID: 21300000, guid: 26872a9ca37c6f24a81274805285d763, type: 3}
+  _framesPerSecond: 18
+  _loop: 1
+  _mirrored: 0

@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 52fd3bddf8df99f479edb2524d36aa6a, type: 3}
+  m_Name: Attack_Shade_Slash
+  m_EditorClassIdentifier: Brawler.Combat::Brawler.Combat.AttackData
+  _damage: 8
+  _knockback: {x: 3.5, y: 0}
+  _hitstunFrames: 18
+  _frames:
+    _startup: 18
+    _active: 3
+    _recovery: 24
+    _cancelWindowStart: 0
+    _cancelWindowEnd: 0
+  _hitboxSize: {x: 2.1111112, y: 0.8888889}
+  _hitboxOffset: {x: 1.0555556, y: 0.44444445}
+  _lungeSpeed: 2
+  _hitStopFrames: 5
+  _screenShake: 0.25

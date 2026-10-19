@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Shade_WallSlide
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: 5371f1eadbcc82343843a91017786069, type: 3}
+  - {fileID: 21300000, guid: 6b1d59677b85f39448778e46b7af7ce3, type: 3}
+  - {fileID: 21300000, guid: 2c7abec4335bc614e866be53fbcbe145, type: 3}
+  - {fileID: 21300000, guid: c9b3059c5ef0c5e48b28d69c42369594, type: 3}
+  _framesPerSecond: 10
+  _loop: 1
+  _mirrored: 0
