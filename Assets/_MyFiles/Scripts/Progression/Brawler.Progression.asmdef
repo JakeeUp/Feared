@@ -1,0 +1,14 @@
+{
+    "name": "Brawler.Progression",
+    "rootNamespace": "Brawler.Progression",
+    "references": ["Brawler.Core", "Brawler.Combat"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
