@@ -1,7 +1,7 @@
 {
     "name": "Brawler.Editor",
     "rootNamespace": "Brawler.Editor",
-    "references": ["Brawler.Core", "Brawler.Combat", "Brawler.Player", "Brawler.Presentation", "Unity.InputSystem", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"],
+    "references": ["Brawler.Core", "Brawler.Combat", "Brawler.Player", "Brawler.Enemy", "Brawler.Progression", "Brawler.Presentation", "Brawler.Level", "Unity.InputSystem", "UnityEngine.UI", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

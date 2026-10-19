@@ -43,6 +43,17 @@ namespace Brawler.Presentation
         /// <summary>SmoothDamp velocity for the (lazier) vertical follow.</summary>
         private float _followVelocityY;
 
+        // Level framing on top of the settings (camera zones): current values ease toward the requested ones.
+        private float _framingDistance;
+        private Vector3 _framingOffset;
+        private float _framingDistanceGoal;
+        private Vector3 _framingOffsetGoal;
+        private float _framingYaw;
+        private float _framingYawGoal;
+
+        /// <summary>How fast framing changes settle (1/s, exponential on real time).</summary>
+        private const float FramingRate = 2.5f;
+
         /// <summary>Vertical follow smooth time = FollowSmoothTime × this.</summary>
         private const float VerticalLag = 3f;
 
@@ -68,6 +79,7 @@ namespace Brawler.Presentation
 
         private void LateUpdate()
         {
+            UpdateFraming();
             if (_target == null)
             {
                 return;
@@ -120,6 +132,18 @@ namespace Brawler.Presentation
         /// Applies <see cref="CameraRigSettings"/> to the hierarchy: pivot rotation (pitch, yaw), camera local position
         /// (0, 0, -Distance) and field of view. Called from Awake and OnValidate.
         /// </summary>
+        /// <summary>
+        /// Level framing on top of the settings: pulls the camera back by <paramref name="extraDistance"/>, shifts what it
+        /// looks at by <paramref name="extraOffset"/> and swings it round by <paramref name="extraYaw"/> degrees (a slight
+        /// angle shows the sides of the 3D set). Eases in over about a second. (0, zero, 0) restores the default.
+        /// </summary>
+        public void SetFraming(float extraDistance, Vector3 extraOffset, float extraYaw = 0f)
+        {
+            _framingDistanceGoal = extraDistance;
+            _framingOffsetGoal = extraOffset;
+            _framingYawGoal = extraYaw;
+        }
+
         [ContextMenu("Apply Settings")]
         public void ApplySettings()
         {
@@ -130,12 +154,12 @@ namespace Brawler.Presentation
 
             if (_pivot != null)
             {
-                _pivot.localRotation = Quaternion.Euler(_settings.Pitch, _settings.Yaw, 0f);
+                _pivot.localRotation = Quaternion.Euler(_settings.Pitch, _settings.Yaw + _framingYaw, 0f);
             }
 
             if (_camera != null)
             {
-                _camera.transform.localPosition = new Vector3(0f, 0f, -_settings.Distance);
+                _camera.transform.localPosition = new Vector3(0f, 0f, -(_settings.Distance + _framingDistance));
                 _camera.fieldOfView = _settings.FieldOfView;
             }
         }
@@ -145,7 +169,31 @@ namespace Brawler.Presentation
         private Vector3 GetGoalPosition()
         {
             Vector3 offset = _settings != null ? _settings.TargetOffset : Vector3.zero;
-            return _target.position + offset;
+            return _target.position + offset + _framingOffset;
+        }
+
+        private void UpdateFraming()
+        {
+            if (Mathf.Approximately(_framingDistance, _framingDistanceGoal) && _framingOffset == _framingOffsetGoal
+                && Mathf.Approximately(_framingYaw, _framingYawGoal))
+            {
+                return;
+            }
+
+            // Real time, so framing still settles during hitstop; exponential so it starts quick and lands soft.
+            float t = 1f - Mathf.Exp(-FramingRate * Time.unscaledDeltaTime);
+            _framingDistance = Mathf.Abs(_framingDistance - _framingDistanceGoal) < 0.01f ? _framingDistanceGoal : Mathf.Lerp(_framingDistance, _framingDistanceGoal, t);
+            _framingOffset = (_framingOffset - _framingOffsetGoal).sqrMagnitude < 0.0001f ? _framingOffsetGoal : Vector3.Lerp(_framingOffset, _framingOffsetGoal, t);
+            _framingYaw = Mathf.Abs(_framingYaw - _framingYawGoal) < 0.05f ? _framingYawGoal : Mathf.Lerp(_framingYaw, _framingYawGoal, t);
+            if (_camera != null && _settings != null)
+            {
+                _camera.transform.localPosition = new Vector3(0f, 0f, -(_settings.Distance + _framingDistance));
+            }
+
+            if (_pivot != null && _settings != null)
+            {
+                _pivot.localRotation = Quaternion.Euler(_settings.Pitch, _settings.Yaw + _framingYaw, 0f);
+            }
         }
     }
 }

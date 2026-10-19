@@ -1,0 +1,14 @@
+{
+    "name": "Brawler.Level",
+    "rootNamespace": "Brawler.Level",
+    "references": ["Brawler.Core", "Brawler.Combat", "Brawler.Player", "Brawler.Enemy", "Brawler.Presentation", "UnityEngine.UI"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
