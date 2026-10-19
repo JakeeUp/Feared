@@ -18,6 +18,9 @@ namespace Brawler.Player
             Hitstun = new HitstunState();
             Air = new AirState();
             WallSlide = new WallSlideState();
+            Parry = new ParryState();
+            Grapple = new GrappleState();
+            Zip = new ZipState();
         }
 
         // ============ States ============
@@ -42,5 +45,14 @@ namespace Brawler.Player
 
         /// <summary>Holding onto / sliding down a wall.</summary>
         public WallSlideState WallSlide { get; }
+
+        /// <summary>Parry stance, deflect and counter window.</summary>
+        public ParryState Parry { get; }
+
+        /// <summary>Swinging from a ring the chain hooked.</summary>
+        public GrappleState Grapple { get; }
+
+        /// <summary>Pulled along the chain to a heavy target.</summary>
+        public ZipState Zip { get; }
     }
 }

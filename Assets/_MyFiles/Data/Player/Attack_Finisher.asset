@@ -16,13 +16,13 @@ MonoBehaviour:
   _knockback: {x: 9, y: 2}
   _hitstunFrames: 28
   _frames:
-    _startup: 8
+    _startup: 7
     _active: 4
-    _recovery: 22
-    _cancelWindowStart: 20
-    _cancelWindowEnd: 34
+    _recovery: 14
+    _cancelWindowStart: 11
+    _cancelWindowEnd: 25
   _hitboxSize: {x: 1.3888888, y: 1.5}
   _hitboxOffset: {x: 0.6944444, y: 0.75}
   _lungeSpeed: 2.5
-  _hitStopFrames: 8
-  _screenShake: 0.45
+  _hitStopFrames: 9
+  _screenShake: 0.5

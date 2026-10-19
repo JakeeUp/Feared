@@ -21,11 +21,25 @@ namespace Brawler.Player
         /// <summary>A surface counts as a wall when |normal.x| is at least this (rejects slopes and crate tops).</summary>
         private const float MinWallNormalX = 0.7f;
 
+        /// <summary>Frames a jump always rises at full speed before a released button can cut it (minimum hop).</summary>
+        /// <remarks>Without it a buffered press released before landing is cut on its very first frame into a tiny hop.</remarks>
+        private const int MinJumpCutFrames = 4;
+
+        /// <summary>Stick Y (up or down) that turns Attack into a directional slash.</summary>
+        private const float DirectionalAttackThreshold = 0.7f;
+
+        /// <summary>Rope origin height above the capsule centre (roughly the hand).</summary>
+        private const float RopeOriginOffset = 0.3f;
+
         // ============ Private Motor State ============
 
         private float _verticalVelocity; // Y velocity owned by Move()'s gravity step (units/s)
         private float _timeSinceGrounded; // scaled seconds since the controller last reported grounded (coyote time)
         private bool _jumpCutPending;     // true from a jump until Jump is released (variable jump height)
+        private bool _jumpReleased;       // Jump let go while rising: heavier gravity until the apex
+        private float _jumpStartTime;     // context Time of the last jump launch (minimum hop before a cut)
+        private int _wallJumpBlockedSide; // wall side last kicked off: unusable until landing or grabbing the other wall
+        private int _lastGrabbedWallSide; // wall side last grabbed this airtime: re-grabbing it does not refill air moves
 
         // ============ Construction ============
 
@@ -97,6 +111,9 @@ namespace Brawler.Player
         /// <summary>True during dash i-frames. Written by DashState each processed frame; cleared on Dash exit.</summary>
         public bool IsInvulnerable { get; set; }
 
+        /// <summary>True while a parry would deflect an incoming hit. Written by ParryState.</summary>
+        public bool IsParryActive { get; set; }
+
         /// <summary>The most recent hit taken. Written by PlayerController.TryApplyDamage; read by HitstunState.Enter.</summary>
         public DamageInfo LastHit { get; set; }
 
@@ -107,10 +124,10 @@ namespace Brawler.Player
             set => _verticalVelocity = value;
         }
 
-        /// <summary>Air dashes left before landing (or touching a wall) refills them.</summary>
+        /// <summary>Air dashes left before landing (or grabbing a new wall) refills them.</summary>
         public int AirDashesLeft { get; set; }
 
-        /// <summary>Air (double) jumps left before landing (or touching a wall) refills them.</summary>
+        /// <summary>Air (double) jumps left before landing (or grabbing a new wall) refills them.</summary>
         public int AirJumpsLeft { get; set; }
 
         /// <summary>True from a double jump until its rise ends (drives the flip animation).</summary>
@@ -121,6 +138,33 @@ namespace Brawler.Player
 
         /// <summary>Scaled seconds of reduced air control left after a wall jump (keeps the kick-off from being undone).</summary>
         public float WallJumpLockTimer { get; set; }
+
+        /// <summary>
+        /// Wall side (+1 / -1) the player last wall-jumped off, or 0. That side can't be grabbed or kicked off again
+        /// until the player lands or grabs the opposite wall, so one wall can't be climbed forever (chimneys still work).
+        /// </summary>
+        public int WallJumpBlockedSide => _wallJumpBlockedSide;
+
+        /// <summary>Overhead slash (Attack + up). Null = none.</summary>
+        public AttackData UpAttack { get; set; }
+
+        /// <summary>Downward air slash that pogos (Attack + down in the air). Null = none.</summary>
+        public AttackData DownAttack { get; set; }
+
+        /// <summary>Directional attack picked by <see cref="TryStartAttack"/> (null = the combo), read by AttackState.Enter.</summary>
+        public AttackData PendingDirectionalAttack { get; set; }
+
+        /// <summary>The chain while it's flying (throwing it is not a state).</summary>
+        public Chain Chain { get; } = new Chain();
+
+        /// <summary>Ring the chain just hooked, read by GrappleState.Enter.</summary>
+        public GrappleAnchor PendingAnchor { get; set; }
+
+        /// <summary>Heavy target the chain just hooked, read by ZipState.Enter.</summary>
+        public IChainTarget PendingZipTarget { get; set; }
+
+        /// <summary>World point the grapple rope starts from (about hand height).</summary>
+        public Vector3 RopeOrigin => Controller.transform.position + Vector3.up * (Controller.center.y + RopeOriginOffset);
 
         /// <summary>True while the CharacterController reports ground contact (updated by Move).</summary>
         public bool IsGrounded => Controller != null && Controller.isGrounded;
@@ -179,11 +223,24 @@ namespace Brawler.Player
             }
             else
             {
-                // Heavier on the way down: snappier arcs than a symmetric parabola.
+                // Heavier on the way down (snappier than a symmetric parabola), heavier while rising after an early
+                // release (short hops without a sudden stop), and lighter at the apex while Jump is held (hang time).
                 float gravity = Movement != null ? Movement.Gravity : -30f;
-                if (_verticalVelocity < 0f && Movement != null)
+                if (Movement != null)
                 {
-                    gravity *= Movement.FallGravityMultiplier;
+                    if (_verticalVelocity < 0f)
+                    {
+                        gravity *= Movement.FallGravityMultiplier;
+                    }
+                    else if (_jumpReleased)
+                    {
+                        gravity *= Movement.ReleaseGravityMultiplier;
+                    }
+
+                    if (Mathf.Abs(_verticalVelocity) < Movement.ApexHangThreshold && Input != null && Input.JumpHeld && !_jumpReleased)
+                    {
+                        gravity *= Movement.ApexGravityMultiplier;
+                    }
                 }
 
                 _verticalVelocity += gravity * deltaTime;
@@ -197,7 +254,9 @@ namespace Brawler.Player
             if (Controller.isGrounded)
             {
                 _timeSinceGrounded = 0f;
+                _jumpReleased = false;
                 RefillAirMoves();
+                ResetWallUse();
                 IsDoubleJumping = false;
             }
             else
@@ -206,12 +265,65 @@ namespace Brawler.Player
             }
         }
 
+        /// <summary>
+        /// Moves the CharacterController by an exact displacement with no gravity step (the grapple swing integrates
+        /// its own). Keeps the grounded bookkeeping (coyote time, air-move refills) the same as <see cref="Move"/>.
+        /// </summary>
+        /// <param name="displacement">World-space displacement for this tick.</param>
+        /// <param name="deltaTime">Scaled delta time (Update).</param>
+        /// <returns>The controller's collision flags, or None when it didn't move.</returns>
+        public CollisionFlags MoveDirect(Vector3 displacement, float deltaTime)
+        {
+            if (deltaTime <= 0f || Controller == null || !Controller.enabled)
+            {
+                return CollisionFlags.None;
+            }
+
+            CollisionFlags flags = Controller.Move(displacement);
+            if (Controller.isGrounded)
+            {
+                _timeSinceGrounded = 0f;
+                RefillAirMoves();
+                ResetWallUse();
+                IsDoubleJumping = false;
+            }
+            else
+            {
+                _timeSinceGrounded += deltaTime;
+            }
+
+            return flags;
+        }
+
+        /// <summary>
+        /// Throws the chain if Chain is buffered and something is in reach. This never changes state: the hook flies
+        /// while the player keeps doing whatever they were doing (PlayerController resolves it when it lands). With
+        /// nothing in reach the press stays buffered, so pressing a moment early still throws.
+        /// </summary>
+        /// <returns>True if the chain was thrown.</returns>
+        public bool TryFireChain()
+        {
+            if (Chain.IsFlying || !Buffer.Peek(BufferedCommand.Grapple, Time))
+            {
+                return false;
+            }
+
+            if (!ChainTargeting.FindBest(this, out GrappleAnchor anchor, out IChainTarget enemy))
+            {
+                return false;
+            }
+
+            Buffer.TryConsume(BufferedCommand.Grapple, Time);
+            Chain.Fire(RopeOrigin, anchor, enemy);
+            return true;
+        }
+
         /// <summary>Launches a jump and enters the air state. Consumes coyote time.</summary>
         public void StartJump()
         {
             _verticalVelocity = Movement.JumpVelocity;
             _timeSinceGrounded = float.MaxValue;
-            _jumpCutPending = true;
+            ArmJumpCut();
             IsDoubleJumping = false;
             Machine.ChangeState(States.Air);
         }
@@ -224,7 +336,7 @@ namespace Brawler.Player
         {
             AirJumpsLeft--;
             _verticalVelocity = Movement.DoubleJumpVelocity;
-            _jumpCutPending = true;
+            ArmJumpCut();
             IsDoubleJumping = true;
             WallJumpLockTimer = 0f;
 
@@ -235,27 +347,64 @@ namespace Brawler.Player
             }
         }
 
-        /// <summary>Refills air dashes and air jumps (on landing or touching a wall).</summary>
+        /// <summary>Refills air dashes and air jumps (on landing or grabbing a new wall).</summary>
         public void RefillAirMoves()
         {
             AirDashesLeft = Movement != null ? Movement.AirDashes : 0;
             AirJumpsLeft = Movement != null ? Movement.AirJumps : 0;
         }
 
+        /// <summary>
+        /// Called when the player grabs the wall on <paramref name="side"/>. Refills air moves only for a different wall
+        /// than the last one grabbed this airtime (no drop-off, double jump, re-grab climbing), and grabbing the
+        /// opposite wall lifts the wall-jump block (chimney climbing).
+        /// </summary>
+        /// <param name="side">+1 right, -1 left.</param>
+        public void OnWallGrabbed(int side)
+        {
+            if (side != _lastGrabbedWallSide)
+            {
+                RefillAirMoves();
+            }
+
+            _lastGrabbedWallSide = side;
+            if (side != _wallJumpBlockedSide)
+            {
+                _wallJumpBlockedSide = 0;
+            }
+        }
+
+        /// <summary>True when the wall on <paramref name="side"/> may be grabbed or kicked off (see <see cref="WallJumpBlockedSide"/>).</summary>
+        /// <param name="side">+1 right, -1 left. 0 is never usable.</param>
+        /// <returns>False for 0 and for the blocked side.</returns>
+        public bool CanUseWall(int side)
+        {
+            return side != 0 && side != _wallJumpBlockedSide;
+        }
+
+        /// <summary>Clears the wall-jump block and the last grabbed wall. Called on landing.</summary>
+        public void ResetWallUse()
+        {
+            _wallJumpBlockedSide = 0;
+            _lastGrabbedWallSide = 0;
+        }
+
         /// <summary>Kicks off the wall on <see cref="WallSide"/>: up and away, facing away, brief air-control lock.</summary>
+        /// <remarks>Blocks <see cref="WallSide"/> until landing or grabbing the opposite wall (no single-wall climbing).</remarks>
         public void StartWallJump()
         {
             int away = -WallSide;
+            _wallJumpBlockedSide = WallSide;
             _verticalVelocity = Movement.WallJumpVelocity;
             Velocity = new Vector3(away * Movement.WallJumpPush, 0f, 0f);
             FacingSign = away;
             WallJumpLockTimer = FrameTime.ToSeconds(Movement.WallJumpLockFrames);
-            _jumpCutPending = true;
+            ArmJumpCut();
             IsDoubleJumping = false;
             Machine.ChangeState(States.Air);
         }
 
-        /// <summary>Variable jump height: releasing Jump while rising cuts the upward velocity once.</summary>
+        /// <summary>Variable jump height: releasing Jump while rising switches to heavier gravity until the apex.</summary>
         public void ApplyJumpCut()
         {
             if (!_jumpCutPending)
@@ -269,9 +418,10 @@ namespace Brawler.Player
                 return;
             }
 
-            if (Input != null && !Input.JumpHeld)
+            // A minimum hop first, so a buffered press released before the jump started still clears low platforms.
+            if (Input != null && !Input.JumpHeld && Time - _jumpStartTime >= FrameTime.ToSeconds(MinJumpCutFrames))
             {
-                _verticalVelocity *= Movement.JumpCutMultiplier;
+                _jumpReleased = true;
                 _jumpCutPending = false;
             }
         }
@@ -300,13 +450,18 @@ namespace Brawler.Player
             return !(hit.collider is CharacterController) && Mathf.Abs(hit.normal.x) >= MinWallNormalX;
         }
 
-        /// <summary>Consumes a buffered Dash, Jump or Attack (in that priority) and switches state. Shared by Idle and Move.</summary>
+        /// <summary>Consumes a buffered Parry, Dash, Jump or Attack (in that priority) and switches state. Shared by Idle and Move.</summary>
         /// <returns>True if a transition happened (the caller should return).</returns>
         public bool TryStartAction()
         {
-            if (Buffer.TryConsume(BufferedCommand.Dash, Time))
+            if (Buffer.TryConsume(BufferedCommand.Parry, Time))
             {
-                Machine.ChangeState(States.Dash);
+                Machine.ChangeState(States.Parry);
+                return true;
+            }
+
+            if (TryStartDash())
+            {
                 return true;
             }
 
@@ -319,10 +474,64 @@ namespace Brawler.Player
             return TryStartAttack();
         }
 
+        /// <summary>
+        /// Starts a dash if Dash is buffered: a roll on the ground, an air dash (spends <see cref="AirDashesLeft"/>) in the
+        /// air. With no air dashes left the press stays buffered so it rolls on landing.
+        /// </summary>
+        /// <returns>True if the dash started.</returns>
+        public bool TryStartDash()
+        {
+            bool grounded = IsGrounded;
+            if (!grounded && AirDashesLeft <= 0)
+            {
+                return false;
+            }
+
+            if (!Buffer.TryConsume(BufferedCommand.Dash, Time))
+            {
+                return false;
+            }
+
+            if (!grounded)
+            {
+                AirDashesLeft--;
+            }
+
+            Machine.ChangeState(States.Dash);
+            return true;
+        }
+
+        /// <summary>
+        /// Air jump if Jump is buffered and <see cref="AirJumpsLeft"/> allows, switching to the air state (cancels out of
+        /// an air attack). Stays buffered otherwise.
+        /// </summary>
+        /// <returns>True if the double jump started.</returns>
+        public bool TryStartAirJump()
+        {
+            if (AirJumpsLeft <= 0 || !Buffer.TryConsume(BufferedCommand.Jump, Time))
+            {
+                return false;
+            }
+
+            StartDoubleJump();
+            Machine.ChangeState(States.Air);
+            return true;
+        }
+
         /// <summary>Starts a fresh combo if Attack is buffered. Works on the ground and in the air.</summary>
         /// <returns>True if the attack started.</returns>
         public bool TryStartAttack()
         {
+            // Directional slashes first: up = overhead (anti-air), down in the air = pogo slash.
+            AttackData directional = PickDirectionalAttack();
+            if (directional != null && Buffer.TryConsume(BufferedCommand.Attack, Time))
+            {
+                ComboTracker.Reset();
+                PendingDirectionalAttack = directional;
+                Machine.ChangeState(States.Attack);
+                return true;
+            }
+
             // Only consume Attack when there is a combo to start, so the press isn't silently eaten.
             if (ComboTracker.ComboLength > 0 && Buffer.TryConsume(BufferedCommand.Attack, Time))
             {
@@ -332,6 +541,32 @@ namespace Brawler.Player
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// The directional attack the stick asks for, or null. The stick's Y is also depth movement, so only a clear
+        /// push (mostly vertical) counts: diagonals keep walking in depth and swing the normal combo.
+        /// </summary>
+        public AttackData PickDirectionalAttack()
+        {
+            if (Input == null)
+            {
+                return null;
+            }
+
+            Vector2 stick = Input.Move;
+            bool vertical = Mathf.Abs(stick.y) >= DirectionalAttackThreshold && Mathf.Abs(stick.x) < Mathf.Abs(stick.y) * 0.75f;
+            if (!vertical)
+            {
+                return null;
+            }
+
+            if (stick.y > 0f)
+            {
+                return UpAttack;
+            }
+
+            return IsGrounded ? null : DownAttack;
         }
 
         /// <summary>Exits a timeline state to Air when airborne, otherwise Move or Idle depending on input.</summary>
@@ -353,5 +588,13 @@ namespace Brawler.Player
         }
 
         private float Deadzone => Movement != null ? Movement.InputDeadzone : DefaultDeadzone;
+
+        /// <summary>Arms the one-shot jump cut for a jump launched now (see <see cref="ApplyJumpCut"/>).</summary>
+        private void ArmJumpCut()
+        {
+            _jumpCutPending = true;
+            _jumpReleased = false;
+            _jumpStartTime = Time;
+        }
     }
 }

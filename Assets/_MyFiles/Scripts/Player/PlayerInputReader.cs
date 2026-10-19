@@ -36,11 +36,19 @@ namespace Brawler.Player
         [Tooltip("Gameplay/Jump — Button (Space, gamepad south). Raises CommandPressed(Jump) on performed; held state drives variable jump height.")]
         [SerializeField] private InputActionReference _jumpAction;
 
+        [Tooltip("Gameplay/Parry — Button (L, mouse right, gamepad right shoulder). Raises CommandPressed(Parry) on performed.")]
+        [SerializeField] private InputActionReference _parryAction;
+
+        [Tooltip("Gameplay/Grapple — Button (E, gamepad right trigger). Raises CommandPressed(Grapple) on performed.")]
+        [SerializeField] private InputActionReference _grappleAction;
+
         // ============ Cached Delegates (no per-subscribe allocation) ============
 
         private Action<InputAction.CallbackContext> _onAttackPerformed;
         private Action<InputAction.CallbackContext> _onDashPerformed;
         private Action<InputAction.CallbackContext> _onJumpPerformed;
+        private Action<InputAction.CallbackContext> _onParryPerformed;
+        private Action<InputAction.CallbackContext> _onGrapplePerformed;
 
         // ============ Runtime State ============
 
@@ -66,6 +74,8 @@ namespace Brawler.Player
             _onAttackPerformed = OnAttackPerformed;
             _onDashPerformed = OnDashPerformed;
             _onJumpPerformed = OnJumpPerformed;
+            _onParryPerformed = OnParryPerformed;
+            _onGrapplePerformed = OnGrapplePerformed;
         }
 
         private void OnEnable()
@@ -93,6 +103,18 @@ namespace Brawler.Player
                 _jumpAction.action.performed += _onJumpPerformed;
                 _jumpAction.action.Enable();
             }
+
+            if (_parryAction != null && _parryAction.action != null)
+            {
+                _parryAction.action.performed += _onParryPerformed;
+                _parryAction.action.Enable();
+            }
+
+            if (_grappleAction != null && _grappleAction.action != null)
+            {
+                _grappleAction.action.performed += _onGrapplePerformed;
+                _grappleAction.action.Enable();
+            }
         }
 
         private void OnDisable()
@@ -119,6 +141,18 @@ namespace Brawler.Player
             {
                 _jumpAction.action.performed -= _onJumpPerformed;
                 _jumpAction.action.Disable();
+            }
+
+            if (_parryAction != null && _parryAction.action != null)
+            {
+                _parryAction.action.performed -= _onParryPerformed;
+                _parryAction.action.Disable();
+            }
+
+            if (_grappleAction != null && _grappleAction.action != null)
+            {
+                _grappleAction.action.performed -= _onGrapplePerformed;
+                _grappleAction.action.Disable();
             }
 
             _move = Vector2.zero;
@@ -151,13 +185,23 @@ namespace Brawler.Player
             CommandPressed?.Invoke(BufferedCommand.Jump);
         }
 
+        private void OnParryPerformed(InputAction.CallbackContext context)
+        {
+            CommandPressed?.Invoke(BufferedCommand.Parry);
+        }
+
+        private void OnGrapplePerformed(InputAction.CallbackContext context)
+        {
+            CommandPressed?.Invoke(BufferedCommand.Grapple);
+        }
+
         // ============ Validation ============
 
         private void OnValidate()
         {
-            if (_moveAction == null || _attackAction == null || _dashAction == null || _jumpAction == null)
+            if (_moveAction == null || _attackAction == null || _dashAction == null || _jumpAction == null || _parryAction == null)
             {
-                Debug.LogWarning($"{nameof(PlayerInputReader)} on '{name}': assign Move/Attack/Dash/Jump InputActionReferences (BrawlerControls › Gameplay).", this);
+                Debug.LogWarning($"{nameof(PlayerInputReader)} on '{name}': assign Move/Attack/Dash/Jump/Parry InputActionReferences (BrawlerControls › Gameplay).", this);
             }
         }
     }

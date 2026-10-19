@@ -9,7 +9,8 @@ namespace Brawler.Player
     /// Frame timeline runs on a private <see cref="FrameClock"/> in FixedTick; hitbox sweeps on Active frames.
     /// </summary>
     /// <remarks>
-    /// Transitions (§4.1): Tick — 1. cancel window &amp;&amp; consume Dash -&gt; Dash (ComboTracker.Reset);
+    /// Transitions (§4.1): Tick — 1. cancel window &amp;&amp; consume Dash (air: an air dash left) -&gt; Dash (ComboTracker.Reset);
+    /// then Parry, then Jump (ground jump, or double jump in the air);
     /// 2. cancel window &amp;&amp; HasNext &amp;&amp; consume Attack -&gt; TryAdvance, re-enter Attack.
     /// FixedTick — 3. IsFinished -&gt; ComboTracker.Reset; Move if input else Idle. Hitstun external (priority 0).
     /// Facing is LOCKED for the whole attack.
@@ -20,6 +21,8 @@ namespace Brawler.Player
 
         private readonly FrameClock _clock = new FrameClock();
         private AttackData _attack;
+        private bool _directional;
+        private bool _pogoed;
 
         // ============ Properties (read by presentation) ============
 
@@ -37,7 +40,12 @@ namespace Brawler.Player
         /// <inheritdoc />
         public void Enter(PlayerContext context)
         {
-            _attack = context.Combo != null ? context.Combo.GetAttack(context.ComboTracker.CurrentIndex) : null;
+            _directional = context.PendingDirectionalAttack != null;
+            _attack = _directional
+                ? context.PendingDirectionalAttack
+                : context.Combo != null ? context.Combo.GetAttack(context.ComboTracker.CurrentIndex) : null;
+            context.PendingDirectionalAttack = null;
+            _pogoed = false;
             if (_attack == null)
             {
                 context.ComboTracker.Reset();
@@ -71,23 +79,45 @@ namespace Brawler.Player
 
             if (frames.IsInCancelWindow(frame))
             {
-                if (context.Buffer.TryConsume(BufferedCommand.Dash, context.Time))
+                // Dash cancel. In the air it spends an air dash (no endless dash -> attack -> dash flight).
+                if (CanDash(context) && context.Buffer.Peek(BufferedCommand.Dash, context.Time))
                 {
                     context.ComboTracker.Reset();
-                    context.Machine.ChangeState(context.States.Dash);
+                    context.TryStartDash();
                     return;
                 }
 
-                // Jump cancel (grounded only) launches straight out of the swing.
-                if (context.IsGrounded && context.Buffer.TryConsume(BufferedCommand.Jump, context.Time))
+                // Parry cancel: answer an enemy's swing from inside your own recovery.
+                if (context.Buffer.TryConsume(BufferedCommand.Parry, context.Time))
+                {
+                    context.ComboTracker.Reset();
+                    context.Machine.ChangeState(context.States.Parry);
+                    return;
+                }
+
+                // Jump cancel launches straight out of the swing (coyote counts); in the air it spends a double jump.
+                if (context.CanGroundJump && context.Buffer.TryConsume(BufferedCommand.Jump, context.Time))
                 {
                     context.ComboTracker.Reset();
                     context.StartJump();
                     return;
                 }
 
+                if (!context.CanGroundJump && context.AirJumpsLeft > 0 && context.Buffer.Peek(BufferedCommand.Jump, context.Time))
+                {
+                    context.ComboTracker.Reset();
+                    context.TryStartAirJump();
+                    return;
+                }
+
+                // A directional slash (or a held direction) breaks out into a fresh attack of its own.
+                if (context.PickDirectionalAttack() != null && context.TryStartAttack())
+                {
+                    return;
+                }
+
                 // HasNext before consuming, so a press during the finisher stays buffered instead of being eaten.
-                if (context.ComboTracker.HasNext && context.Buffer.TryConsume(BufferedCommand.Attack, context.Time))
+                if (!_directional && context.ComboTracker.HasNext && context.Buffer.TryConsume(BufferedCommand.Attack, context.Time))
                 {
                     context.ComboTracker.TryAdvance(out _);
                     context.Machine.ChangeState(context.States.Attack);
@@ -95,17 +125,12 @@ namespace Brawler.Player
                 }
             }
 
-            AttackPhase phase = frames.GetPhase(frame);
-            if (phase == AttackPhase.Startup || phase == AttackPhase.Active)
+            if (TryMoveCancel(context, frames, frame))
             {
-                context.Velocity = new Vector3(context.FacingSign * _attack.LungeSpeed, 0f, 0f);
-            }
-            else
-            {
-                context.Velocity = Vector3.MoveTowards(context.Velocity, Vector3.zero, context.Movement.Deceleration * deltaTime);
+                return;
             }
 
-            context.Move(context.Velocity, deltaTime);
+            Steer(context, frames.GetPhase(frame), deltaTime);
         }
 
         /// <inheritdoc />
@@ -144,12 +169,86 @@ namespace Brawler.Player
 
         // ============ Helpers ============
 
+        /// <summary>Grounded, or airborne with an air dash left (matches <see cref="PlayerContext.TryStartDash"/>).</summary>
+        private static bool CanDash(PlayerContext context)
+        {
+            return context.IsGrounded || context.AirDashesLeft > 0;
+        }
+
+        /// <summary>
+        /// Attacks never root the player. On the ground the stick steers at a fraction of run speed (plus the swing's
+        /// lunge while it's out); in the air the swing keeps full air control and gravity, so an air attack never stalls
+        /// a jump.
+        /// </summary>
+        private void Steer(PlayerContext context, AttackPhase phase, float deltaTime)
+        {
+            PlayerMovementSettings movement = context.Movement;
+            Vector3 input = context.GetMoveInputWorld();
+
+            if (!context.IsGrounded)
+            {
+                Vector3 airTarget = input * movement.MoveSpeed;
+                if (Mathf.Abs(context.Velocity.x) > movement.MoveSpeed && input.x * context.Velocity.x > 0f)
+                {
+                    airTarget.x = context.Velocity.x; // keep over-speed momentum (swing releases, dashes)
+                }
+
+                context.Velocity = Vector3.MoveTowards(context.Velocity, airTarget, movement.AirAcceleration * deltaTime);
+                context.Move(context.Velocity, deltaTime);
+                return;
+            }
+
+            Vector3 target = input * (movement.MoveSpeed * movement.AttackMoveFraction);
+            if (!_directional && (phase == AttackPhase.Startup || phase == AttackPhase.Active))
+            {
+                target.x += context.FacingSign * _attack.LungeSpeed;
+            }
+
+            context.Velocity = Vector3.MoveTowards(context.Velocity, target, movement.Deceleration * deltaTime);
+            context.Move(context.Velocity, deltaTime);
+        }
+
+        /// <summary>
+        /// Recovery is not a prison: shortly after the active frames, moving (on the ground) or anything at all (in the
+        /// air) hands control straight back, unless another attack is already buffered (the combo keeps priority).
+        /// </summary>
+        private bool TryMoveCancel(PlayerContext context, AttackFrames frames, int frame)
+        {
+            int activeEnd = frames.Startup + frames.Active;
+            bool grounded = context.IsGrounded;
+            int earliest = activeEnd + (grounded ? context.Movement.AttackMoveCancelFrames : 0);
+            if (frame < earliest || context.Buffer.Peek(BufferedCommand.Attack, context.Time))
+            {
+                return false;
+            }
+
+            if (grounded && !context.HasMoveInput())
+            {
+                return false;
+            }
+
+            context.ComboTracker.Reset();
+            context.ChangeToLocomotion();
+            return true;
+        }
+
         private void ProcessFrame(PlayerContext context, int frame)
         {
             // Sweep dedupes per activation, so a target walking in late is still hit exactly once.
-            if (_attack != null && _attack.Frames.IsActive(frame) && context.Hitbox != null)
+            if (_attack == null || !_attack.Frames.IsActive(frame) || context.Hitbox == null)
             {
-                context.Hitbox.Sweep();
+                return;
+            }
+
+            int hits = context.Hitbox.Sweep();
+
+            // Pogo: a down slash that connects bounces the player up and refreshes the air moves (Hollow Knight).
+            if (hits > 0 && !_pogoed && ReferenceEquals(_attack, context.DownAttack))
+            {
+                _pogoed = true;
+                context.VerticalVelocity = context.Movement.PogoVelocity;
+                context.RefillAirMoves();
+                context.IsDoubleJumping = false;
             }
         }
     }

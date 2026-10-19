@@ -10,7 +10,7 @@ namespace Brawler.Player
     /// <remarks>
     /// Transitions (Tick): 1. consume Jump -&gt; wall jump (Air); 2. consume Dash -&gt; Dash (away from the wall unless
     /// steered); 3. grounded -&gt; Move/Idle; 4. stick released / pushed away, or the wall ends -&gt; Air.
-    /// Touching a wall refills air dashes and air jumps.
+    /// Grabbing a different wall than the last one this airtime refills air dashes and air jumps.
     /// </remarks>
     public sealed class WallSlideState : IState<PlayerContext>
     {
@@ -41,7 +41,7 @@ namespace Brawler.Player
             context.Velocity = Vector3.zero;
             context.VerticalVelocity = 0f;
             context.FacingSign = -context.WallSide;
-            context.RefillAirMoves();
+            context.OnWallGrabbed(context.WallSide); // refills only for a new wall; lifts the block on the other side
             context.IsDoubleJumping = false;
         }
 

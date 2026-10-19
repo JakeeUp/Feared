@@ -12,6 +12,7 @@ namespace Brawler.Player
     /// <remarks>
     /// Transitions (FixedTick, after advancing — §4.1): when the timeline ends: 1. consume Attack -&gt; Attack
     /// (ComboTracker.Begin; dash-attack buffering); 2. else Air / Move / Idle.
+    /// Tick: a roll from <c>RollCancelFrame</c> on -&gt; buffered Jump (StartJump) or Attack.
     /// Hitstun: external, only reachable outside i-frames (Hitbox skips invulnerable hurtboxes).
     /// </remarks>
     public sealed class DashState : IState<PlayerContext>
@@ -77,7 +78,12 @@ namespace Brawler.Player
         /// <inheritdoc />
         public void Tick(PlayerContext context, float deltaTime)
         {
-            // Committed for its full length: no voluntary exits.
+            // A roll's recovery (from RollCancelFrame) is cancellable by a buffered jump or attack; dashes are committed.
+            if (IsRoll && _clock.Frame >= context.Movement.RollCancelFrame && TryCancelRoll(context))
+            {
+                return;
+            }
+
             context.Velocity = _direction * CurrentSpeed(context);
             context.Move(context.Velocity, deltaTime, IsRoll ? -1f : 0f);
         }
@@ -119,6 +125,19 @@ namespace Brawler.Player
         }
 
         // ============ Helpers ============
+
+        /// <summary>Jump or attack out of the roll recovery. Dash isn't offered so rolls can't chain their i-frames.</summary>
+        private static bool TryCancelRoll(PlayerContext context)
+        {
+            if (context.CanGroundJump && context.Buffer.TryConsume(BufferedCommand.Jump, context.Time))
+            {
+                context.Velocity = Vector3.ClampMagnitude(context.Velocity, context.Movement.MoveSpeed);
+                context.StartJump();
+                return true;
+            }
+
+            return context.TryStartAttack();
+        }
 
         private int Length(PlayerContext context)
         {

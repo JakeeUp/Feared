@@ -41,11 +41,12 @@ namespace Brawler.Editor
         private const string SlashFramesDir = ThirdParty + "/SlashFX_Frames";
 
         private const string Root = "Assets/_MyFiles";
-        private const string ClipDir = Root + "/Data/Animation/Hero";
+        private const string ClipRoot = Root + "/Data/Animation";
         private const string EventBusPath = Root + "/Data/Core/EventBus.asset";
         private const string InputActionsPath = Root + "/Data/Input/BrawlerControls.inputactions";
         private const string SpriteMaterialPath = Root + "/Art/Materials/M_SpriteAlphaClip.mat";
         private const string PropMaterialPath = Root + "/Art/Materials/M_Prop.mat";
+        private const string RopeMaterialPath = Root + "/Art/Materials/M_GrappleRope.mat";
         private const string CameraSettingsPath = Root + "/Data/Presentation/CameraRigSettings.asset";
         private const string PostFxProfilePath = Root + "/Data/Presentation/PostFX_2_5D.asset";
 
@@ -59,13 +60,13 @@ namespace Brawler.Editor
         // ============ Scale (the one knob) ============
 
         /// <summary>Standing height of the character in world units. Sprite size, collision and tuning derive from it.</summary>
-        private const float CharacterHeight = 1f;
+        internal const float CharacterHeight = 1f;
 
         /// <summary>Camera distance that keeps a <see cref="CharacterHeight"/>-tall character readable.</summary>
         private const float CameraDistance = 11f;
 
-        private const float CapsuleRadius = 0.22f;
-        private static readonly Vector3 HurtboxSize = new Vector3(0.45f, 0.95f, 0.5f);
+        internal const float CapsuleRadius = 0.22f;
+        internal static readonly Vector3 HurtboxSize = new Vector3(0.45f, 0.95f, 0.5f);
         private const float PlayerShadowScale = 0.5f;
 
         /// <summary>Placeholder dummies are 2 units tall; this brings them to the character's height.</summary>
@@ -74,15 +75,24 @@ namespace Brawler.Editor
         /// <summary>Forward lunge per combo link (units/s).</summary>
         private static readonly float[] Lunges = { 1f, 1.3f, 2.5f };
 
-        /// <summary>Movement tuned for a 1-unit character: (field, value). Jump apex ~1.4 units.</summary>
+        /// <summary>
+        /// Movement tuned for a 1-unit character: (field, value), float fields only. Jump apex ~1.4 units
+        /// (v^2 / 2|g| with g = -38), fast fall (x2 gravity) for a crisp arc.
+        /// </summary>
         private static readonly (string Field, float Value)[] MovementTuning =
         {
             ("_moveSpeed", 4f),
+            ("_acceleration", 120f),       // full speed in ~2 frames
+            ("_deceleration", 140f),       // stop / turn around in ~2-3 frames
+            ("_gravity", -38f),
+            ("_fallGravityMultiplier", 2f),
+            ("_jumpCutMultiplier", 0.5f),
+            ("_airAcceleration", 60f),
             ("_dashSpeed", 10f),
             ("_rollSpeed", 7.5f),
-            ("_jumpVelocity", 9.2f),
-            ("_doubleJumpVelocity", 7.5f), // second rise ~0.9 units
-            ("_wallJumpVelocity", 8f),
+            ("_jumpVelocity", 10.35f),     // apex ~1.41 units
+            ("_doubleJumpVelocity", 8.45f), // second rise ~0.94 units
+            ("_wallJumpVelocity", 9f),      // rise ~1.07 units per kick
             ("_wallJumpPush", 4.5f),
             ("_wallSlideSpeed", 1.8f),
         };
@@ -92,8 +102,8 @@ namespace Brawler.Editor
         /// <summary>Alpha above which a pixel counts as art.</summary>
         private const byte SolidAlpha = 128;
 
-        /// <summary>Hero frame used as the size reference (its art height maps to <see cref="CharacterHeight"/>).</summary>
-        private const string ReferenceFrame = HeroRoot + "/idle.png";
+        /// <summary>Frame (under a variant root) used as the size reference; its art height maps to <see cref="CharacterHeight"/>.</summary>
+        private const string ReferenceFrameName = "idle.png";
 
         /// <summary>Index of the swing frame in each attack clip (frame 0 is the wind-up).</summary>
         private const int SwingFrame = 1;
@@ -112,8 +122,8 @@ namespace Brawler.Editor
 
         private struct ClipSpec
         {
-            public string Name;   // asset name: Clip_Hero_<Name>
-            public string Folder; // frame folder under HeroRoot
+            public string Name;   // asset name: Clip_<Prefix>_<Name>
+            public string Folder; // frame folder under the variant root
             public float Fps;
             public bool Loop;
             public bool Mirrored; // art faces the other way (wall grab faces the wall)
@@ -132,6 +142,10 @@ namespace Brawler.Editor
             new ClipSpec("Dash", "dash", 16f, true),
             new ClipSpec("Roll", "roll", 20f, false),
             new ClipSpec("DoubleJump", "roll", 24f, false, first: 2, count: 7), // the roll's tucked spin as a somersault
+            new ClipSpec("Tumble", "roll", 18f, true, first: 2, count: 7),      // launched / knocked through the air
+            new ClipSpec("Down", "roll", 1f, false, first: 5, count: 1),        // curled on the ground
+            new ClipSpec("GetUp", "roll", 20f, false, first: 9),                // the roll's recovery back to standing
+            new ClipSpec("Hurt", "fall", 10f, true),                            // flinch
             new ClipSpec("Jump", "jump", 12f, false),
             new ClipSpec("Fall", "fall", 10f, true),
             new ClipSpec("WallGrab", "wall_grab", 24f, false, mirrored: true),
@@ -199,12 +213,12 @@ namespace Brawler.Editor
             }
 
             var log = new StringBuilder("[Brawler] Setup Hero\n");
-            float ppu = ArtHeight(ReferenceFrame) / CharacterHeight;
-            var pivots = new Dictionary<string, Vector2Int>();
+            float ppu = CharacterPpu(HeroRoot);
+            Dictionary<string, Vector2Int> pivots;
             try
             {
                 AssetDatabase.StartAssetEditing();
-                ImportHeroFrames(ppu, pivots, log);
+                pivots = ImportCharacterFrames(HeroRoot, ppu, log);
                 ImportEnvironment(log);
             }
             finally
@@ -213,17 +227,22 @@ namespace Brawler.Editor
             }
 
             List<string> sparkFrames = SliceSlashSheets(log);
-            Dictionary<string, SpriteClip> clips = BuildClips(sparkFrames, log);
+            Dictionary<string, SpriteClip> clips = BuildCharacterClips(HeroRoot, "Hero", log);
+            BuildSparkClips(sparkFrames, clips, log);
 
             ApplyCharacterScale(player, log);
             TuneAttacks(ppu, pivots, log);
             WirePlayer(player, clips, log);
             WireDummyFlashes(log);
             WireHitSparks(player, clips, log);
-            WireJumpInput(player, log);
+            WireInput(player, log);
+            WireDirectionalAttacks(player, log);
             ApplyCamera(log);
-            BuildLevel(log);
-            BuildBackdrop(log);
+            if (!CathedralBuilder.IsCathedralScene())
+            {
+                BuildLevel(log);
+                BuildBackdrop(log);
+            }
 
             EditorSceneManager.MarkSceneDirty(player.gameObject.scene);
             AssetDatabase.SaveAssets();
@@ -237,16 +256,18 @@ namespace Brawler.Editor
         /// motion is kept) and the lowest non-trail pixel (feet). Body-based anchoring keeps clips consistent with each
         /// other even though the frames are different sizes and the attacks carry huge sword trails.
         /// </summary>
-        private static void ImportHeroFrames(float ppu, Dictionary<string, Vector2Int> pivots, StringBuilder log)
+        /// <returns>Anchor (pixels, bottom-up) per frame folder.</returns>
+        internal static Dictionary<string, Vector2Int> ImportCharacterFrames(string root, float ppu, StringBuilder log)
         {
+            var pivots = new Dictionary<string, Vector2Int>();
             int count = 0;
             var specs = Clips.Select(c => c.Folder).Distinct().Concat(new[] { "idle_blink" });
             foreach (string folder in specs)
             {
-                List<string> frames = FramePaths(folder);
+                List<string> frames = FramePaths(root, folder);
                 if (frames.Count == 0)
                 {
-                    log.AppendLine($"  ! no frames in {HeroRoot}/{folder}");
+                    log.AppendLine($"  ! no frames in {root}/{folder}");
                     continue;
                 }
 
@@ -260,10 +281,18 @@ namespace Brawler.Editor
             }
 
             // The still idle frame shares idle_blink's anchor so the blink never shifts the sprite.
-            Vector2Int idlePivot = pivots.TryGetValue("idle_blink", out Vector2Int p) ? p : ClipPivot(new List<string> { ReferenceFrame });
-            ConfigurePixelSprite(ReferenceFrame, idlePivot, ppu);
+            string idleFrame = $"{root}/{ReferenceFrameName}";
+            Vector2Int idlePivot = pivots.TryGetValue("idle_blink", out Vector2Int p) ? p : ClipPivot(new List<string> { idleFrame });
+            ConfigurePixelSprite(idleFrame, idlePivot, ppu);
 
-            log.AppendLine($"  * {count + 1} hero frames: point filter, {ppu:0.#} px/unit ({CharacterHeight} unit tall), anchored on the body");
+            log.AppendLine($"  * {count + 1} frames from {root}: point filter, {ppu:0.#} px/unit ({CharacterHeight} unit tall), anchored on the body");
+            return pivots;
+        }
+
+        /// <summary>Pixels per unit that make the variant's idle art <see cref="CharacterHeight"/> tall.</summary>
+        internal static float CharacterPpu(string root)
+        {
+            return ArtHeight($"{root}/{ReferenceFrameName}") / CharacterHeight;
         }
 
         private static void ImportEnvironment(StringBuilder log)
@@ -344,43 +373,54 @@ namespace Brawler.Editor
 
         // ============ Clips ============
 
-        private static Dictionary<string, SpriteClip> BuildClips(List<string> sparkFrames, StringBuilder log)
+        /// <summary>Builds (or refreshes) every character clip for a colour variant as Clip_[prefix]_[Name] assets.</summary>
+        internal static Dictionary<string, SpriteClip> BuildCharacterClips(string root, string prefix, StringBuilder log)
         {
-            Directory.CreateDirectory(ClipDir);
+            Directory.CreateDirectory(ClipDirFor(prefix));
             var clips = new Dictionary<string, SpriteClip>();
 
             foreach (ClipSpec spec in Clips)
             {
-                IEnumerable<string> paths = FramePaths(spec.Folder).Skip(spec.First);
+                IEnumerable<string> paths = FramePaths(root, spec.Folder).Skip(spec.First);
                 if (spec.Count > 0)
                 {
                     paths = paths.Take(spec.Count);
                 }
 
                 Sprite[] frames = paths.Select(LoadSprite).Where(s => s != null).ToArray();
-                clips[spec.Name] = SaveClip(spec.Name, frames, spec.Fps, spec.Loop, spec.Mirrored);
+                clips[spec.Name] = SaveClip(prefix, spec.Name, frames, spec.Fps, spec.Loop, spec.Mirrored);
             }
 
             // Idle: hold the still frame, then blink (~every 3 s at 8 fps).
-            Sprite idle = LoadSprite(ReferenceFrame);
-            var idleFrames = Enumerable.Repeat(idle, 24).Concat(FramePaths("idle_blink").Select(LoadSprite)).Where(s => s != null).ToArray();
-            clips["Idle"] = SaveClip("Idle", idleFrames, 8f, true, false);
+            Sprite idle = LoadSprite($"{root}/{ReferenceFrameName}");
+            var idleFrames = Enumerable.Repeat(idle, 24).Concat(FramePaths(root, "idle_blink").Select(LoadSprite)).Where(s => s != null).ToArray();
+            clips["Idle"] = SaveClip(prefix, "Idle", idleFrames, 8f, true, false);
 
+            log.AppendLine($"  * {clips.Count} clips in {ClipDirFor(prefix)}");
+            return clips;
+        }
+
+        private static void BuildSparkClips(List<string> sparkFrames, Dictionary<string, SpriteClip> clips, StringBuilder log)
+        {
             for (int combo = 1; combo <= 3; combo++)
             {
                 string prefix = $"{SlashFramesDir}/Slash{combo}_";
                 Sprite[] frames = sparkFrames.Where(p => p.StartsWith(prefix))
                     .OrderBy(FrameNumber).Select(LoadSprite).Where(s => s != null).ToArray();
-                clips[$"Spark{combo}"] = SaveClip($"Spark{combo}", frames, 24f, false, false);
+                clips[$"Spark{combo}"] = SaveClip("Hero", $"Spark{combo}", frames, 24f, false, false);
             }
 
-            log.AppendLine($"  * {clips.Count} clips in {ClipDir}");
-            return clips;
+            log.AppendLine("  * hit spark clips built");
         }
 
-        private static SpriteClip SaveClip(string name, Sprite[] frames, float fps, bool loop, bool mirrored)
+        private static string ClipDirFor(string prefix)
         {
-            string path = $"{ClipDir}/Clip_Hero_{name}.asset";
+            return $"{ClipRoot}/{prefix}";
+        }
+
+        private static SpriteClip SaveClip(string prefix, string name, Sprite[] frames, float fps, bool loop, bool mirrored)
+        {
+            string path = $"{ClipDirFor(prefix)}/Clip_{prefix}_{name}.asset";
             var clip = AssetDatabase.LoadAssetAtPath<SpriteClip>(path);
             if (clip == null)
             {
@@ -455,39 +495,11 @@ namespace Brawler.Editor
             {
                 string folder = $"attack{i + 1}";
                 var attack = AssetDatabase.LoadAssetAtPath<AttackData>(AttackPaths[i]);
-                List<string> frames = FramePaths(folder);
-                if (attack == null || frames.Count <= SwingFrame || !pivots.TryGetValue(folder, out Vector2Int pivot))
+                if (attack == null || !pivots.TryGetValue(folder, out Vector2Int pivot)
+                    || !MeasureSwing(HeroRoot, folder, ppu, pivot, out Vector2 size, out Vector2 offset))
                 {
                     continue;
                 }
-
-                Color32[] pixels = LoadPixels(frames[SwingFrame], out int w, out int h);
-                int minX = int.MaxValue, maxX = -1, minY = int.MaxValue, maxY = -1;
-                for (int y = 0; y < h; y++)
-                {
-                    for (int x = pivot.x + SwingBodyMarginPx; x < w; x++)
-                    {
-                        if (pixels[y * w + x].a < SolidAlpha)
-                        {
-                            continue;
-                        }
-
-                        minX = Mathf.Min(minX, x);
-                        maxX = Mathf.Max(maxX, x);
-                        minY = Mathf.Min(minY, y);
-                        maxY = Mathf.Max(maxY, y);
-                    }
-                }
-
-                if (maxX < 0)
-                {
-                    continue;
-                }
-
-                // From the body centre to the blade tip; pixel rows are bottom-up, pivot.y is the feet row.
-                float x0 = pivot.x, x1 = maxX + 1, y0 = minY, y1 = maxY + 1;
-                var size = new Vector2((x1 - x0) / ppu, (y1 - y0) / ppu);
-                var offset = new Vector2(((x0 + x1) * 0.5f - pivot.x) / ppu, ((y0 + y1) * 0.5f - pivot.y) / ppu);
 
                 var so = new SerializedObject(attack);
                 so.FindProperty("_hitboxSize").vector2Value = size;
@@ -496,6 +508,46 @@ namespace Brawler.Editor
                 so.ApplyModifiedProperties();
                 log.AppendLine($"  * {attack.name}: hitbox {size.x:0.00} x {size.y:0.00} at ({offset.x:0.00}, {offset.y:0.00}) from the swing art");
             }
+        }
+
+        /// <summary>Hitbox from the swing frame's art in front of the body centre (body centre to blade tip).</summary>
+        internal static bool MeasureSwing(string root, string folder, float ppu, Vector2Int pivot, out Vector2 size, out Vector2 offset)
+        {
+            size = offset = Vector2.zero;
+            List<string> frames = FramePaths(root, folder);
+            if (frames.Count <= SwingFrame)
+            {
+                return false;
+            }
+
+            Color32[] pixels = LoadPixels(frames[SwingFrame], out int w, out int h);
+            int minX = int.MaxValue, maxX = -1, minY = int.MaxValue, maxY = -1;
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = pivot.x + SwingBodyMarginPx; x < w; x++)
+                {
+                    if (pixels[y * w + x].a < SolidAlpha)
+                    {
+                        continue;
+                    }
+
+                    minX = Mathf.Min(minX, x);
+                    maxX = Mathf.Max(maxX, x);
+                    minY = Mathf.Min(minY, y);
+                    maxY = Mathf.Max(maxY, y);
+                }
+            }
+
+            if (maxX < 0)
+            {
+                return false;
+            }
+
+            // Pixel rows are bottom-up; pivot.y is the feet row.
+            float x0 = pivot.x, x1 = maxX + 1, y0 = minY, y1 = maxY + 1;
+            size = new Vector2((x1 - x0) / ppu, (y1 - y0) / ppu);
+            offset = new Vector2(((x0 + x1) * 0.5f - pivot.x) / ppu, ((y0 + y1) * 0.5f - pivot.y) / ppu);
+            return true;
         }
 
         private static void ApplyCamera(StringBuilder log)
@@ -565,10 +617,15 @@ namespace Brawler.Editor
             so.FindProperty("_fall").objectReferenceValue = clips["Fall"];
             so.FindProperty("_wallGrab").objectReferenceValue = clips["WallGrab"];
             so.FindProperty("_wallSlide").objectReferenceValue = clips["WallSlide"];
+            so.FindProperty("_hurt").objectReferenceValue = clips["Hurt"];
             SetArray(so.FindProperty("_attacks"), clips["Attack1"], clips["Attack2"], clips["Attack3"]);
+            so.FindProperty("_parry").objectReferenceValue = clips["Attack2"];
             so.ApplyModifiedProperties();
 
             AddFlash(visual, player.transform);
+            so.Update();
+            so.FindProperty("_flash").objectReferenceValue = visual.GetComponent<HitFlash>();
+            so.ApplyModifiedProperties();
             log.AppendLine("  * player: hero sprite, animation driver, hit flash");
         }
 
@@ -588,9 +645,21 @@ namespace Brawler.Editor
             so.FindProperty("_material").objectReferenceValue =
                 GraphicsSettings.defaultRenderPipeline != null ? GraphicsSettings.defaultRenderPipeline.default2DMaterial : null;
             SetArray(so.FindProperty("_clips"), clips["Spark1"], clips["Spark2"], clips["Spark3"]);
+            so.FindProperty("_towardCamera").floatValue = EffectTowardCamera;
             so.ApplyModifiedProperties();
-            log.AppendLine("  * SlashFX now plays as hit sparks at the contact point");
+
+            // Parry: procedural star + ring (ParryFlash), on the same object, camera and material as the sparks.
+            var parry = new SerializedObject(GetOrAdd<ParryFlash>(go));
+            parry.FindProperty("_eventBus").objectReferenceValue = so.FindProperty("_eventBus").objectReferenceValue;
+            parry.FindProperty("_cameraTransform").objectReferenceValue = cameraTransform;
+            parry.FindProperty("_material").objectReferenceValue = so.FindProperty("_material").objectReferenceValue;
+            parry.FindProperty("_towardCamera").floatValue = EffectTowardCamera + 0.05f;
+            parry.ApplyModifiedProperties();
+            log.AppendLine("  * SlashFX now plays as hit sparks at the contact point; parries flash a star + ring");
         }
+
+        /// <summary>How far hit sparks and VFX are pulled toward the camera: past the sprites' 0.5-unit depth bias.</summary>
+        internal const float EffectTowardCamera = 0.65f;
 
         private static void WireDummyFlashes(StringBuilder log)
         {
@@ -608,32 +677,170 @@ namespace Brawler.Editor
             log.AppendLine($"  * hit flash on {count} dummies");
         }
 
-        private static void AddFlash(GameObject target, Transform owner)
+        internal static void AddFlash(GameObject target, Transform owner)
         {
             var flash = GetOrAdd<HitFlash>(target);
             var so = new SerializedObject(flash);
             so.FindProperty("_eventBus").objectReferenceValue = AssetDatabase.LoadAssetAtPath<EventBusAsset>(EventBusPath);
             so.FindProperty("_owner").objectReferenceValue = owner;
             so.FindProperty("_renderer").objectReferenceValue = target.GetComponent<SpriteRenderer>();
+            so.FindProperty("_duration").floatValue = 0.09f; // fade after the hold that matches the hit's freeze
             so.ApplyModifiedProperties();
         }
 
-        private static void WireJumpInput(PlayerController player, StringBuilder log)
+        /// <summary>Wires the Jump and Parry actions into the PlayerInputReader, and the event bus into the controller (parry events).</summary>
+        internal static void WireInput(PlayerController player, StringBuilder log)
         {
-            InputActionReference jump = AssetDatabase.LoadAllAssetsAtPath(InputActionsPath)
-                .OfType<InputActionReference>()
-                .FirstOrDefault(r => r.action != null && r.action.name == "Jump");
             var reader = player.GetComponent<PlayerInputReader>();
-            if (jump == null || reader == null)
+            InputActionReference jump = FindAction("Jump");
+            InputActionReference parry = FindAction("Parry");
+            if (jump == null || parry == null || reader == null)
             {
-                log.AppendLine("  ! couldn't find the Jump action reference (reimport BrawlerControls.inputactions)");
+                log.AppendLine("  ! couldn't find the Jump/Parry action references (reimport BrawlerControls.inputactions)");
                 return;
             }
 
             var so = new SerializedObject(reader);
             so.FindProperty("_jumpAction").objectReferenceValue = jump;
+            so.FindProperty("_parryAction").objectReferenceValue = parry;
+            so.FindProperty("_grappleAction").objectReferenceValue = FindAction("Grapple");
             so.ApplyModifiedProperties();
-            log.AppendLine("  * Jump input wired (Space / gamepad South); Dash/Roll is Shift / K / gamepad East");
+            WireGrapple(player);
+
+            var controller = new SerializedObject(player);
+            controller.FindProperty("_eventBus").objectReferenceValue = AssetDatabase.LoadAssetAtPath<EventBusAsset>(EventBusPath);
+            controller.ApplyModifiedProperties();
+            log.AppendLine("  * input: Jump (Space / A), Parry (L / right mouse / RB), Grapple (E / RT); Dash/Roll is Shift / K / B");
+        }
+
+        /// <summary>
+        /// Up slash (anti-air, launches) and down slash (pogo). Assets are created once, then left for tuning; the
+        /// animation driver shows them with the second and third combo clips.
+        /// </summary>
+        internal static void WireDirectionalAttacks(PlayerController player, StringBuilder log)
+        {
+            AttackData up = EnsureDirectionalAttack(Root + "/Data/Player/Attack_Up.asset", 9, new Vector2(1f, 4.5f), 4, 3, 12,
+                new Vector2(1.1f, 1f), new Vector2(0.15f, 1.35f));
+            AttackData down = EnsureDirectionalAttack(Root + "/Data/Player/Attack_Down.asset", 9, new Vector2(1.5f, 0f), 3, 4, 10,
+                new Vector2(0.9f, 0.9f), new Vector2(0f, -0.2f));
+
+            var so = new SerializedObject(player);
+            so.FindProperty("_upAttack").objectReferenceValue = up;
+            so.FindProperty("_downAttack").objectReferenceValue = down;
+            so.ApplyModifiedProperties();
+
+            PlayerAnimationDriver driver = player.GetComponentInChildren<PlayerAnimationDriver>(true);
+            if (driver != null)
+            {
+                var d = new SerializedObject(driver);
+                d.FindProperty("_upAttack").objectReferenceValue = AssetDatabase.LoadAssetAtPath<SpriteClip>($"{ClipDirFor("Hero")}/Clip_Hero_Attack2.asset");
+                d.FindProperty("_downAttack").objectReferenceValue = AssetDatabase.LoadAssetAtPath<SpriteClip>($"{ClipDirFor("Hero")}/Clip_Hero_Attack3.asset");
+                d.ApplyModifiedProperties();
+            }
+
+            log.AppendLine("  * directional attacks: up slash (Attack + up), pogo slash (Attack + down in the air)");
+        }
+
+        private static AttackData EnsureDirectionalAttack(string path, int damage, Vector2 knockback, int startup, int active, int recovery,
+                                                          Vector2 hitboxSize, Vector2 hitboxOffset)
+        {
+            var attack = AssetDatabase.LoadAssetAtPath<AttackData>(path);
+            if (attack != null)
+            {
+                return attack;
+            }
+
+            attack = ScriptableObject.CreateInstance<AttackData>();
+            AssetDatabase.CreateAsset(attack, path);
+            var so = new SerializedObject(attack);
+            so.FindProperty("_damage").intValue = damage;
+            so.FindProperty("_knockback").vector2Value = knockback;
+            so.FindProperty("_hitstunFrames").intValue = 16;
+            SerializedProperty frames = so.FindProperty("_frames");
+            frames.FindPropertyRelative("_startup").intValue = startup;
+            frames.FindPropertyRelative("_active").intValue = active;
+            frames.FindPropertyRelative("_recovery").intValue = recovery;
+            frames.FindPropertyRelative("_cancelWindowStart").intValue = startup + active;
+            frames.FindPropertyRelative("_cancelWindowEnd").intValue = startup + active + recovery;
+            so.FindProperty("_lungeSpeed").floatValue = 0f;
+            so.FindProperty("_hitboxSize").vector2Value = hitboxSize;
+            so.FindProperty("_hitboxOffset").vector2Value = hitboxOffset;
+            so.FindProperty("_hitStopFrames").intValue = 4;
+            so.FindProperty("_screenShake").floatValue = 0.15f;
+            so.ApplyModifiedProperties();
+            return attack;
+        }
+
+        /// <summary>Rope line + target highlighting for the grapple (child "GrappleRope").</summary>
+        private static void WireGrapple(PlayerController player)
+        {
+            Transform child = player.transform.Find("GrappleRope");
+            if (child == null)
+            {
+                child = new GameObject("GrappleRope").transform;
+                Undo.RegisterCreatedObjectUndo(child.gameObject, "Create Grapple Rope");
+                child.SetParent(player.transform, false);
+            }
+
+            var line = GetOrAdd<LineRenderer>(child.gameObject);
+            line.positionCount = 2;
+            line.useWorldSpace = true;
+            line.startWidth = 0.035f;
+            line.endWidth = 0.025f;
+            line.numCapVertices = 2;
+            line.shadowCastingMode = ShadowCastingMode.Off;
+            line.receiveShadows = false;
+            line.startColor = new Color(0.85f, 0.78f, 0.6f, 1f);
+            line.endColor = new Color(0.95f, 0.9f, 0.75f, 1f);
+            line.sharedMaterial = EnemySetup.EnsureUnlitMaterial(RopeMaterialPath, Color.white);
+            line.enabled = false;
+
+            Sprite ring = CathedralBuilder.EnsureRingSprite();
+            Transform hook = ChainMarker(child, "Hook", ring, new Color(0.95f, 0.9f, 0.75f, 1f), 0.35f);
+            Transform reticle = ChainMarker(child, "Reticle", ring, new Color(1f, 0.3f, 0.25f, 0.95f), 1.1f);
+
+            var rope = GetOrAdd<GrappleRope>(child.gameObject);
+            var so = new SerializedObject(rope);
+            so.FindProperty("_player").objectReferenceValue = player;
+            so.FindProperty("_line").objectReferenceValue = line;
+            so.FindProperty("_hook").objectReferenceValue = hook;
+            so.FindProperty("_reticle").objectReferenceValue = reticle;
+            so.ApplyModifiedProperties();
+        }
+
+        /// <summary>A small unlit ring sprite under the rope (the hook tip, the target reticle). Starts hidden.</summary>
+        private static Transform ChainMarker(Transform parent, string name, Sprite sprite, Color color, float scale)
+        {
+            Transform marker = parent.Find(name);
+            if (marker == null)
+            {
+                marker = new GameObject(name).transform;
+                Undo.RegisterCreatedObjectUndo(marker.gameObject, "Create " + name);
+                marker.SetParent(parent, false);
+            }
+
+            marker.localScale = Vector3.one * scale;
+            var sr = GetOrAdd<SpriteRenderer>(marker.gameObject);
+            sr.sprite = sprite;
+            sr.color = color;
+            sr.shadowCastingMode = ShadowCastingMode.Off;
+            sr.receiveShadows = false;
+            sr.sortingOrder = 5;
+            if (GraphicsSettings.defaultRenderPipeline != null)
+            {
+                sr.sharedMaterial = GraphicsSettings.defaultRenderPipeline.default2DMaterial;
+            }
+
+            marker.gameObject.SetActive(false);
+            return marker;
+        }
+
+        /// <summary>The InputActionReference for a Gameplay action in BrawlerControls, or null.</summary>
+        internal static InputActionReference FindAction(string name)
+        {
+            return AssetDatabase.LoadAllAssetsAtPath(InputActionsPath)
+                .OfType<InputActionReference>()
+                .FirstOrDefault(r => r.action != null && r.action.name == name);
         }
 
         private static void BuildLevel(StringBuilder log)
@@ -797,9 +1004,9 @@ namespace Brawler.Editor
             return pixels;
         }
 
-        private static List<string> FramePaths(string folder)
+        private static List<string> FramePaths(string root, string folder)
         {
-            string dir = $"{HeroRoot}/{folder}";
+            string dir = $"{root}/{folder}";
             if (!Directory.Exists(dir))
             {
                 return new List<string>();
@@ -901,13 +1108,13 @@ namespace Brawler.Editor
             return AssetDatabase.LoadAssetAtPath<Sprite>(path);
         }
 
-        private static T GetOrAdd<T>(GameObject go) where T : Component
+        internal static T GetOrAdd<T>(GameObject go) where T : Component
         {
             T component = go.GetComponent<T>();
             return component != null ? component : Undo.AddComponent<T>(go);
         }
 
-        private static void SetArray(SerializedProperty property, params Object[] values)
+        internal static void SetArray(SerializedProperty property, params Object[] values)
         {
             property.arraySize = values.Length;
             for (int i = 0; i < values.Length; i++)
@@ -916,7 +1123,7 @@ namespace Brawler.Editor
             }
         }
 
-        private static GameObject CreateRoot(string name)
+        internal static GameObject CreateRoot(string name)
         {
             var go = new GameObject(name);
             Undo.RegisterCreatedObjectUndo(go, "Create " + name);

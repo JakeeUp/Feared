@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Hero_Hurt
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: de11e6cdfc5f1c741bfe66e98907f5f9, type: 3}
+  - {fileID: 21300000, guid: 708837f377515eb46ad68d85aefe00f3, type: 3}
+  - {fileID: 21300000, guid: 69937d568b1145d47a22b0edd9acb88b, type: 3}
+  - {fileID: 21300000, guid: 9f4cd538bd1ed634a843a905516bd10d, type: 3}
+  _framesPerSecond: 10
+  _loop: 1
+  _mirrored: 0

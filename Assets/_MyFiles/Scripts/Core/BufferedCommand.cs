@@ -14,5 +14,11 @@ namespace Brawler.Core
 
         /// <summary>Jump (also wall jump while on a wall).</summary>
         Jump = 3,
+
+        /// <summary>Parry: deflects a hit that lands inside the parry window.</summary>
+        Parry = 4,
+
+        /// <summary>Grapple: latch onto the best anchor in range and swing; pressed again while swinging, lets go.</summary>
+        Grapple = 5,
     }
 }

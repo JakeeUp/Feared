@@ -55,7 +55,31 @@ namespace Brawler.Player
         [Tooltip("One clip per combo link (index = ComboTracker.CurrentIndex). Frame 0 = wind-up, 1 = swing, rest = recovery.")]
         [SerializeField] private SpriteClip[] _attacks = new SpriteClip[0];
 
+        [Tooltip("Parry: frame 0 is the guard stance, frame 1 the deflecting swing shown after a successful parry.")]
+        [SerializeField] private SpriteClip _parry;
+
+        [Tooltip("Overhead slash (Attack + up). Falls back to the first combo clip.")]
+        [SerializeField] private SpriteClip _upAttack;
+
+        [Tooltip("Pogo slash (Attack + down in the air). Falls back to the first combo clip.")]
+        [SerializeField] private SpriteClip _downAttack;
+
+        [Tooltip("Optional swing pose while grappling. Falls back to the jump/fall clips.")]
+        [SerializeField] private SpriteClip _grapple;
+
+        [Header("Parry Feedback")]
+        [Tooltip("Flashes on a successful parry.")]
+        [SerializeField] private HitFlash _flash;
+
+        [Tooltip("Player flash on a successful parry: held through the parry freeze, then a quick fade.")]
+        [SerializeField] private Color _parryGlow = new Color(1f, 0.92f, 0.65f, 1f);
+
+        [Tooltip("Fade-out of the parry flash after the freeze, in real seconds.")]
+        [SerializeField, Min(0.01f)] private float _parryGlowFade = 0.1f;
+
         // ============ State ============
+
+        private int _flashedParry;
 
         // ============ Lifecycle ============
 
@@ -81,10 +105,24 @@ namespace Brawler.Player
                 int frame = Mathf.Min(_roll.FrameCount - 1, Mathf.FloorToInt(states.Dash.Progress * _roll.FrameCount));
                 _animator.ShowFrame(_roll, frame);
             }
+            else if (ReferenceEquals(state, states.Parry) && _parry != null)
+            {
+                clip = _parry;
+                _animator.ShowFrame(_parry, states.Parry.Succeeded ? 1 : 0);
+            }
             else
             {
                 clip = PickClip(context, state);
                 _animator.Play(clip);
+            }
+
+            if (states.Parry.SuccessCount != _flashedParry)
+            {
+                _flashedParry = states.Parry.SuccessCount;
+                if (_flash != null)
+                {
+                    _flash.Flash(_parryGlow, _parryGlowFade, FrameTime.ToSeconds(context.Movement.ParryHitStopFrames));
+                }
             }
 
             if (_billboard != null && clip != null)
@@ -103,7 +141,7 @@ namespace Brawler.Player
                 return _run;
             }
 
-            if (ReferenceEquals(state, states.Dash))
+            if (ReferenceEquals(state, states.Dash) || ReferenceEquals(state, states.Zip))
             {
                 return _dash;
             }
@@ -116,6 +154,16 @@ namespace Brawler.Player
                 }
 
                 return context.VerticalVelocity > RisingThreshold ? _jump : _fall;
+            }
+
+            if (ReferenceEquals(state, states.Grapple))
+            {
+                if (_grapple != null)
+                {
+                    return _grapple;
+                }
+
+                return states.Grapple.SwingVelocity.y > RisingThreshold ? _jump : _fall;
             }
 
             if (ReferenceEquals(state, states.WallSlide))
@@ -141,36 +189,21 @@ namespace Brawler.Player
 
             int index = Mathf.Max(0, context.ComboTracker.CurrentIndex) % _attacks.Length;
             SpriteClip clip = _attacks[index];
+            if (ReferenceEquals(attack, context.UpAttack) && _upAttack != null)
+            {
+                clip = _upAttack;
+            }
+            else if (ReferenceEquals(attack, context.DownAttack) && _downAttack != null)
+            {
+                clip = _downAttack;
+            }
             if (clip == null)
             {
                 return null;
             }
 
-            _animator.ShowFrame(clip, AttackAnimFrame(attack.Frames, attackState.CurrentFrame, clip.FrameCount));
+            _animator.ShowFrame(clip, attack.Frames.GetAnimationFrame(attackState.CurrentFrame, clip.FrameCount));
             return clip;
-        }
-
-        /// <summary>Startup -&gt; 0 (wind-up), Active -&gt; 1 (swing), Recovery -&gt; frames 2.. spread evenly.</summary>
-        private static int AttackAnimFrame(AttackFrames frames, int frame, int clipFrames)
-        {
-            if (clipFrames < 3)
-            {
-                return Mathf.Clamp(frame * clipFrames / Mathf.Max(1, frames.TotalFrames), 0, clipFrames - 1);
-            }
-
-            int activeEnd = frames.Startup + frames.Active;
-            if (frame < frames.Startup)
-            {
-                return 0;
-            }
-
-            if (frame < activeEnd)
-            {
-                return 1;
-            }
-
-            float t = (frame - activeEnd) / (float)Mathf.Max(1, frames.Recovery);
-            return Mathf.Clamp(2 + Mathf.FloorToInt(t * (clipFrames - 2)), 2, clipFrames - 1);
         }
     }
 }
