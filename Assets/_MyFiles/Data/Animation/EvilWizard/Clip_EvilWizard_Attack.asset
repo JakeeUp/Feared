@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_EvilWizard_Attack
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: 0ed94216a33538e4dbf1928c679335bd, type: 3}
+  - {fileID: 21300000, guid: d40d89baa4a46c74fa0c67062185f856, type: 3}
+  - {fileID: 21300000, guid: 050266871ccebaa4d80a214ee5d2ec65, type: 3}
+  - {fileID: 21300000, guid: 8c3c2ca9572ce4e408630544b77e1916, type: 3}
+  - {fileID: 21300000, guid: 7167a1f2bc64c65468e05f94fb3530e1, type: 3}
+  - {fileID: 21300000, guid: 8d5630ac1b932bc42b0bfec0f53ddfc4, type: 3}
+  - {fileID: 21300000, guid: 2c6bfbde844d48f48b081903a6400d2e, type: 3}
+  - {fileID: 21300000, guid: 5fdebe06387a9e9469bd2ae11356b292, type: 3}
+  _framesPerSecond: 14
+  _loop: 0
+  _mirrored: 0

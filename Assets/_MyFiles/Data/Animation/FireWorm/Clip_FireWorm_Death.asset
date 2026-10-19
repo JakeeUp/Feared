@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_FireWorm_Death
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: c105d34b11c11dd46ab445f4061fef0d, type: 3}
+  - {fileID: 21300000, guid: 982515a0bb68967448177f90f67290c8, type: 3}
+  - {fileID: 21300000, guid: 3576cac74c16e6748a24b89d4ef6da02, type: 3}
+  - {fileID: 21300000, guid: bc3b9b4770e2d244c9b0ff3dd2756a7b, type: 3}
+  - {fileID: 21300000, guid: 4a5cc41854370a1409fb367e9bd5a1ee, type: 3}
+  - {fileID: 21300000, guid: 41473d5cb75ab054180e76b79495ea4e, type: 3}
+  - {fileID: 21300000, guid: 2d0a3abaf51f46647a28802767924dd5, type: 3}
+  - {fileID: 21300000, guid: bfb37d4a521b8b041ba71a2f42187bec, type: 3}
+  _framesPerSecond: 10
+  _loop: 0
+  _mirrored: 0

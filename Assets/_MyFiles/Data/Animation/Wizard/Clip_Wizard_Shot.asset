@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Wizard_Shot
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: 075758e6749f6764cbf978c09436a6cb, type: 3}
+  - {fileID: 21300000, guid: e537ddda43507a045ae0efeb2ae285ed, type: 3}
+  - {fileID: 21300000, guid: 07f33c23324a69345847c8d16ce5eb3d, type: 3}
+  _framesPerSecond: 14
+  _loop: 1
+  _mirrored: 0

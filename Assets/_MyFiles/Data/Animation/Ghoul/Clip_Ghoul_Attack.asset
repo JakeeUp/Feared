@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Ghoul_Attack
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: ec158d715df6f634286a833735c04143, type: 3}
+  - {fileID: 21300000, guid: b67b92ad47326e34b81d7cb4e380c879, type: 3}
+  - {fileID: 21300000, guid: 76d03e45a7b8170419c1af3878ac0959, type: 3}
+  - {fileID: 21300000, guid: 4566806d1e7dcbd4ca5e06e0454d9649, type: 3}
+  - {fileID: 21300000, guid: 694664265599c524e87efa3870d1282a, type: 3}
+  - {fileID: 21300000, guid: bb6b0b591be1c9b4c9a0f1fcf1525b03, type: 3}
+  - {fileID: 21300000, guid: c9dcc872187fd21409f3b00abbeddf27, type: 3}
+  - {fileID: 21300000, guid: d90531bd8b3074b4d8ea198c0768795d, type: 3}
+  _framesPerSecond: 16
+  _loop: 0
+  _mirrored: 1

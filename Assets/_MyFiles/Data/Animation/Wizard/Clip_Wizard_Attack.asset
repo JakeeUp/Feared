@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Wizard_Attack
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: a4d17d6f6c515734ebf36cc4dc5e12db, type: 3}
+  - {fileID: 21300000, guid: 56516afe559c1be4980bb1b8c723dd9e, type: 3}
+  - {fileID: 21300000, guid: 9eb9f40cd0f6bce408a9032806666e81, type: 3}
+  - {fileID: 21300000, guid: befaba97003c49145a30071047343e49, type: 3}
+  - {fileID: 21300000, guid: 7d2bf9c25b3871245a712a4d82ccae2a, type: 3}
+  - {fileID: 21300000, guid: cc0e6774d65c8df419f91e30a1312ce2, type: 3}
+  - {fileID: 21300000, guid: f6b33e9211ac2d7489147d0c49b9d43d, type: 3}
+  - {fileID: 21300000, guid: fdc81c0ec7defe3438448f0b66056c1f, type: 3}
+  - {fileID: 21300000, guid: b55c611f5d382c54e994bba7768697fb, type: 3}
+  - {fileID: 21300000, guid: 75e0aadc43094104eb510d3f9154b764, type: 3}
+  _framesPerSecond: 10
+  _loop: 0
+  _mirrored: 1

@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Angel_Idle
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: 57d5ad79cd81d02499aec6d2c6960c87, type: 3}
+  - {fileID: 21300000, guid: b8c525845d4186842a5df6a5a8f8ffeb, type: 3}
+  - {fileID: 21300000, guid: 2fb6d911fbd7f6f4ba88299294794462, type: 3}
+  - {fileID: 21300000, guid: c6860b91aacf521468387bf879f49e3f, type: 3}
+  - {fileID: 21300000, guid: a1c60430cfd26f945972a010b4db207e, type: 3}
+  - {fileID: 21300000, guid: 1f56e918d5c34d546af1aabe94910998, type: 3}
+  - {fileID: 21300000, guid: df463333b53d0544692053f61c88c53d, type: 3}
+  - {fileID: 21300000, guid: e6810e4f2d412f443a30d005ca9da1f8, type: 3}
+  _framesPerSecond: 10
+  _loop: 1
+  _mirrored: 0

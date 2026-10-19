@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Ghoul_Run
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: 4f54f9206b1de6346a8bca0ad341867c, type: 3}
+  - {fileID: 21300000, guid: 20ba6f5a7ba8e0041869a5c244703d6e, type: 3}
+  - {fileID: 21300000, guid: f18c50077296f8c409c08896e21e5c42, type: 3}
+  - {fileID: 21300000, guid: 3a6942f9fb1c480498b945f3d3d784b7, type: 3}
+  - {fileID: 21300000, guid: 277783cb64cefd54d8689b7367f662d0, type: 3}
+  - {fileID: 21300000, guid: 4b690a642508f054ea23f7f28b492756, type: 3}
+  - {fileID: 21300000, guid: 0a8bd409bce15a54c915abde723ebfe1, type: 3}
+  - {fileID: 21300000, guid: 522102c5a0cacd443b4aa231f4ae8235, type: 3}
+  _framesPerSecond: 14
+  _loop: 1
+  _mirrored: 1

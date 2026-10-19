@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_FireWorm_Idle
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: cc6bdbc814df6a044b90a2811102b60e, type: 3}
+  - {fileID: 21300000, guid: ccc58b0165a3be249b92972ca9ed4642, type: 3}
+  - {fileID: 21300000, guid: 8071647af3c4dac49ab284f7086334a7, type: 3}
+  - {fileID: 21300000, guid: f50c94f6b54b1d04689f568d073eb694, type: 3}
+  - {fileID: 21300000, guid: 1a3d8d60edf9b9f438ffb4885766204c, type: 3}
+  - {fileID: 21300000, guid: 85ce9a9f97554294b9a389121bfe0ba9, type: 3}
+  - {fileID: 21300000, guid: 313d89855b1d3424c85dcf904df163c3, type: 3}
+  - {fileID: 21300000, guid: 1cb21c150e5695243aad99175aedaa86, type: 3}
+  - {fileID: 21300000, guid: 4cbe887cf869ac14ca6ae20fc9c5d6ab, type: 3}
+  _framesPerSecond: 9
+  _loop: 1
+  _mirrored: 0

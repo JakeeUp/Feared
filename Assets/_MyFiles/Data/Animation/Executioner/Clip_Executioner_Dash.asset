@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_Executioner_Dash
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: 3ef714016305697489d1e983e1c4e5cf, type: 3}
+  - {fileID: 21300000, guid: 01f445053c0db8b46894f643f278fc5f, type: 3}
+  - {fileID: 21300000, guid: e95079794a85feb49ba61c361d28f2b8, type: 3}
+  - {fileID: 21300000, guid: 4d515a931bb39434dab6ca466d0a66d6, type: 3}
+  - {fileID: 21300000, guid: d79931562f27a3b48b68bf75f2a8e17b, type: 3}
+  - {fileID: 21300000, guid: fd2427464cd32964fbb0c44082167493, type: 3}
+  - {fileID: 21300000, guid: 7c63ee8e282d0b14b8299976a974e204, type: 3}
+  - {fileID: 21300000, guid: 91cfc522255ba71479980d2e5306e5c8, type: 3}
+  - {fileID: 21300000, guid: f0087a785ada691418f6db3fa450db0d, type: 3}
+  - {fileID: 21300000, guid: a6d610b65945d6b4b9705c3257b6e012, type: 3}
+  - {fileID: 21300000, guid: 8e4f7af748ae5dc4dac929e3be184b1e, type: 3}
+  - {fileID: 21300000, guid: e70b56d93a86b494798d6f6a1d8da053, type: 3}
+  _framesPerSecond: 12
+  _loop: 0
+  _mirrored: 0

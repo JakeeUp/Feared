@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_FireWorm_Shot
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: aa3ffeb3950929546b4a856c6f48628a, type: 3}
+  - {fileID: 21300000, guid: e24303e6039cf8742868cacd1c8de6e6, type: 3}
+  - {fileID: 21300000, guid: 39598559ba1c19e488d5e220bf5ea06a, type: 3}
+  - {fileID: 21300000, guid: 7305d46c3283bde4dadcd0b75cf127e5, type: 3}
+  - {fileID: 21300000, guid: 223210ddc9f19f0439b6868360e916e7, type: 3}
+  - {fileID: 21300000, guid: ea68a897025952f46b3d4d04c1c6e76b, type: 3}
+  _framesPerSecond: 14
+  _loop: 1
+  _mirrored: 0

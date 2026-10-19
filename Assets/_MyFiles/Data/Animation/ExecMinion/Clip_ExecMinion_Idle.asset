@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe5d3744e739af04eaf651a17a8e73c6, type: 3}
+  m_Name: Clip_ExecMinion_Idle
+  m_EditorClassIdentifier: Brawler.Presentation::Brawler.Presentation.SpriteClip
+  _frames:
+  - {fileID: 21300000, guid: 9a9163697ae49034ea66ad17c2599327, type: 3}
+  - {fileID: 21300000, guid: 952436df9c408ce499ffc1917867067f, type: 3}
+  - {fileID: 21300000, guid: 6b26c9dc215180345943aade9979424c, type: 3}
+  - {fileID: 21300000, guid: 9492b30f6d37d544d81a0b8c5bd4e0b2, type: 3}
+  _framesPerSecond: 8
+  _loop: 1
+  _mirrored: 0
