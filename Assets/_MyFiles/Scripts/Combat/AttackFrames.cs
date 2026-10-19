@@ -111,6 +111,78 @@ namespace Brawler.Combat
             return frame >= _cancelWindowStart && frame < _cancelWindowEnd;
         }
 
+        /// <summary>
+        /// Animation frame for clips whose art animates its own wind-up: frames [0, hitFrame) play across startup, the
+        /// hit frame is held through the active frames, and the rest play across recovery.
+        /// </summary>
+        /// <param name="frame">Simulation frame since the attack started.</param>
+        /// <param name="clipFrames">Frames in the clip.</param>
+        /// <param name="hitFrame">Clip frame where the blow lands (or the shot leaves). 0 or less uses the default mapping.</param>
+        /// <returns>Clip frame index in [0, clipFrames).</returns>
+        public int GetAnimationFrame(int frame, int clipFrames, int hitFrame)
+        {
+            if (hitFrame <= 0 || clipFrames < 3)
+            {
+                return GetAnimationFrame(frame, clipFrames);
+            }
+
+            hitFrame = Mathf.Min(hitFrame, clipFrames - 1);
+            if (frame < _startup)
+            {
+                return Mathf.Clamp(Mathf.FloorToInt(frame / (float)Mathf.Max(1, _startup) * hitFrame), 0, hitFrame - 1);
+            }
+
+            int activeEnd = _startup + _active;
+            if (frame < activeEnd)
+            {
+                return hitFrame;
+            }
+
+            int rest = clipFrames - hitFrame - 1;
+            if (rest <= 0)
+            {
+                return hitFrame;
+            }
+
+            float t = (frame - activeEnd) / (float)Mathf.Max(1, _recovery);
+            return Mathf.Clamp(hitFrame + 1 + Mathf.FloorToInt(t * rest), hitFrame + 1, clipFrames - 1);
+        }
+
+        /// <summary>
+        /// Picks the sprite frame for a wind-up / swing / recovery animation: startup shows frame 0, the active frames
+        /// show frame 1, and recovery spreads the remaining frames evenly. Clips under 3 frames play linearly.
+        /// </summary>
+        /// <param name="frame">Frame index since attack start.</param>
+        /// <param name="clipFrames">Frames in the animation.</param>
+        /// <returns>Animation frame index in [0, clipFrames).</returns>
+        public int GetAnimationFrame(int frame, int clipFrames)
+        {
+            if (clipFrames <= 0)
+            {
+                return 0;
+            }
+
+            if (clipFrames < 3)
+            {
+                int total = TotalFrames > 0 ? TotalFrames : 1;
+                return Mathf.Clamp(frame * clipFrames / total, 0, clipFrames - 1);
+            }
+
+            if (frame < _startup)
+            {
+                return 0;
+            }
+
+            int activeEnd = _startup + _active;
+            if (frame < activeEnd)
+            {
+                return 1;
+            }
+
+            float t = (frame - activeEnd) / (float)Mathf.Max(1, _recovery);
+            return Mathf.Clamp(2 + Mathf.FloorToInt(t * (clipFrames - 2)), 2, clipFrames - 1);
+        }
+
         /// <summary>True once the attack's timeline has fully elapsed.</summary>
         /// <param name="frame">Frame index since attack start.</param>
         /// <returns>True when frame &gt;= TotalFrames.</returns>

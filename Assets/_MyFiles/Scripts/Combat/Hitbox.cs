@@ -32,6 +32,12 @@ namespace Brawler.Combat
         [Tooltip("The attacker's own hurtbox; skipped by Sweep so you can never hit yourself.")]
         [SerializeField] private Hurtbox _ownerHurtbox;
 
+        [Tooltip("Attacker's team. Hurtboxes on the same team are skipped (no friendly fire); Neutral hits everything.")]
+        [SerializeField] private CombatTeam _team = CombatTeam.Neutral;
+
+        [Tooltip("Knock targets away from the hitbox centre instead of along the attacker's facing (area attacks like the blade ring).")]
+        [SerializeField] private bool _radialKnockback;
+
         [Header("Debug")]
         [Tooltip("Draw the hitbox volume in the Scene view (red while active).")]
         [SerializeField] private bool _drawGizmos = true;
@@ -51,6 +57,9 @@ namespace Brawler.Combat
 
         /// <summary>True between <see cref="BeginAttack"/> and <see cref="EndAttack"/>.</summary>
         public bool IsActive => _isActive;
+
+        /// <summary>Scales the damage of every hit this hitbox lands (1 = as authored). Set by upgrades.</summary>
+        public float DamageMultiplier { get; set; } = 1f;
 
         // ============ Lifecycle ============
 
@@ -105,6 +114,7 @@ namespace Brawler.Combat
             {
                 if (!_results[i].TryGetComponent(out Hurtbox hurtbox)
                     || hurtbox == _ownerHurtbox
+                    || (_team != CombatTeam.Neutral && hurtbox.Team == _team)
                     || hurtbox.Damageable == null
                     || _hitThisActivation.Contains(hurtbox))
                 {
@@ -118,7 +128,8 @@ namespace Brawler.Combat
                 }
 
                 Vector3 hitPoint = hurtbox.Collider != null ? hurtbox.Collider.ClosestPoint(center) : hurtbox.transform.position;
-                DamageInfo info = _attack.CreateDamageInfo(_facingSign, hitPoint, _owner);
+                int facing = _radialKnockback ? (hurtbox.transform.position.x >= center.x ? 1 : -1) : _facingSign;
+                DamageInfo info = _attack.CreateDamageInfo(facing, hitPoint, _owner, DamageMultiplier);
 
                 // Damage before knockback: hitstun Enter zeroes velocity.
                 if (!hurtbox.Damageable.TryApplyDamage(info))

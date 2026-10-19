@@ -78,12 +78,14 @@ namespace Brawler.Combat
         /// <param name="facingSign">Attacker facing (+1/-1); mirrors knockback X.</param>
         /// <param name="hitPoint">World-space contact point.</param>
         /// <param name="source">Attacker root transform.</param>
+        /// <param name="damageMultiplier">Scales the damage (e.g. the player's damage upgrades). Rounded, never below 1.</param>
         /// <returns>The damage payload.</returns>
-        public DamageInfo CreateDamageInfo(int facingSign, Vector3 hitPoint, Transform source)
+        public DamageInfo CreateDamageInfo(int facingSign, Vector3 hitPoint, Transform source, float damageMultiplier = 1f)
         {
             float sign = facingSign < 0 ? -1f : 1f;
             var knockback = new Vector3(_knockback.x * sign, _knockback.y, 0f);
-            return new DamageInfo(_damage, knockback, _hitstunFrames, hitPoint, source);
+            int damage = Mathf.Approximately(damageMultiplier, 1f) ? _damage : Mathf.Max(1, Mathf.RoundToInt(_damage * damageMultiplier));
+            return new DamageInfo(damage, knockback, _hitstunFrames, hitPoint, source);
         }
 
         // ============ Validation ============

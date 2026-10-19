@@ -25,6 +25,9 @@ namespace Brawler.Combat
         [Tooltip("Component receiving hits. Must implement IDamageable; optionally IKnockbackable and IInvulnerable (e.g. PlayerController, TrainingDummy).")]
         [SerializeField] private MonoBehaviour _owner;
 
+        [Tooltip("Team of the owner. Hitboxes skip hurtboxes on their own team (Neutral is hit by everyone).")]
+        [SerializeField] private CombatTeam _team = CombatTeam.Neutral;
+
         // ============ Cached ============
 
         private IDamageable _damageable;
@@ -44,6 +47,9 @@ namespace Brawler.Combat
 
         /// <summary>Root transform of the owner (used as <see cref="HitEvent.Target"/>). Null if no owner.</summary>
         public Transform OwnerRoot => _owner != null ? _owner.transform : null;
+
+        /// <summary>Team of the owner.</summary>
+        public CombatTeam Team => _team;
 
         /// <summary>The hurtbox trigger collider (used for <c>ClosestPoint</c> hit points).</summary>
         public Collider Collider => _collider;
