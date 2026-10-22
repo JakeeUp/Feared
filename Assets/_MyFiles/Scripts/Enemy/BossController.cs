@@ -296,6 +296,11 @@ namespace Brawler.Enemy
             transform.position = position;
             _health.ResetToMax();
             _recentDamage = 0;
+            _recentDamageStart = 0f;
+            _swipesLeft = 0;
+            _nextSummon = 0f;
+            _clock.Reset();
+            FacingSign = -1;
             State = BossState.Dormant;
             _stateTime = 0f;
         }
@@ -312,7 +317,7 @@ namespace Brawler.Enemy
             {
                 if (this != null)
                 {
-                    _lastChainPoint = transform.position + Vector3.up * 1f;
+                    _lastChainPoint = transform.position + Vector3.up * 1.6f;
                 }
 
                 return _lastChainPoint;

@@ -21,7 +21,7 @@ namespace Brawler.Progression
     /// <see cref="Health"/> (Vitality) and attack <see cref="Hitbox"/> (Strength). The HUD and upgrade menu read it.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class PlayerProgression : MonoBehaviour, IXpCollector
+    public sealed class PlayerProgression : MonoBehaviour
     {
         // ============ Serialized Fields ============
 
@@ -74,9 +74,9 @@ namespace Brawler.Progression
             ApplyStrength();
         }
 
-        // ============ IXpCollector ============
+        // ============ API ============
 
-        /// <inheritdoc />
+        /// <summary>Adds XP (from an orb), levelling up as many times as it covers.</summary>
         public void AddXp(int amount)
         {
             if (amount <= 0 || _settings == null)

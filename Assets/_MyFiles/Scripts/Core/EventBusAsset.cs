@@ -14,21 +14,33 @@ namespace Brawler.Core
         // ============ State ============
 
         private EventBus _bus;
+        private int _busSession = -1;
 
-        /// <summary>The underlying bus, created lazily so it also works if OnEnable has not run yet.</summary>
-        private EventBus Bus => _bus ??= new EventBus();
+        // Bumped on every Play Mode entry. With domain reload off, SO OnEnable/OnDisable don't run then,
+        // so this is what drops listeners left over from the previous session.
+        private static int s_session;
+
+        /// <summary>The underlying bus, recreated lazily at the start of each play session.</summary>
+        private EventBus Bus
+        {
+            get
+            {
+                if (_bus == null || _busSession != s_session)
+                {
+                    _bus = new EventBus();
+                    _busSession = s_session;
+                }
+
+                return _bus;
+            }
+        }
 
         // ============ Lifecycle ============
 
-        private void OnEnable()
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
         {
-            _bus = new EventBus();
-        }
-
-        private void OnDisable()
-        {
-            // Drop listeners from the previous play session (matters when domain reload is disabled).
-            _bus?.Clear();
+            s_session++;
         }
 
         // ============ IEventBus ============

@@ -1,11 +1,10 @@
-using System;
 using UnityEngine;
 
 namespace Brawler.Combat
 {
     /// <summary>
     /// Hit points for anything that can be worn down (player, enemies). Owners route damage here from their
-    /// <see cref="IDamageable"/> implementation and react to <see cref="Died"/>; presentation reads it for health bars.
+    /// <see cref="IDamageable"/> implementation and react to a killing blow (<see cref="TakeDamage"/> returns true); presentation reads it for health bars.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class Health : MonoBehaviour
@@ -19,13 +18,7 @@ namespace Brawler.Combat
 
         private int _current = -1; // -1 = not initialised yet (lazy, so EditMode use works without Awake)
 
-        // ============ Events & Properties ============
-
-        /// <summary>Raised after damage is applied, with the amount taken.</summary>
-        public event Action<int> Damaged;
-
-        /// <summary>Raised once when health reaches 0.</summary>
-        public event Action Died;
+        // ============ Properties ============
 
         /// <summary>Full health.</summary>
         public int Max => _maxHealth;
@@ -65,14 +58,7 @@ namespace Brawler.Combat
             }
 
             _current = Mathf.Max(0, _current - amount);
-            Damaged?.Invoke(amount);
-            if (_current > 0)
-            {
-                return false;
-            }
-
-            Died?.Invoke();
-            return true;
+            return _current == 0;
         }
 
         /// <summary>Refills to <see cref="Max"/> (respawn).</summary>

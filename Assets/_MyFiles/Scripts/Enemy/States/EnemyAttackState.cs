@@ -100,7 +100,8 @@ namespace Brawler.Enemy
                 ProcessFrame(context, frame);
             }
 
-            if (_attack.Frames.IsFinished(_clock.Frame))
+            // A sweep can knock us out of this state (e.g. the player parried), and Exit clears the attack.
+            if (_attack != null && _attack.Frames.IsFinished(_clock.Frame))
             {
                 context.Machine.ChangeState(context.States.Chase);
             }

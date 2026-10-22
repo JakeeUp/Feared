@@ -6,7 +6,7 @@ namespace Brawler.Progression
     /// <summary>
     /// One glowing XP pickup. Bursts out of a defeated enemy, tumbles and settles on the floor, then homes in on the
     /// player once they're within the magnet radius (or after a while regardless) and hands its XP to the
-    /// <see cref="IXpCollector"/>. Owned and recycled by <see cref="XpOrbSpawner"/>.
+    /// <see cref="PlayerProgression"/>. Owned and recycled by <see cref="XpOrbSpawner"/>.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class XpOrb : MonoBehaviour
@@ -33,7 +33,7 @@ namespace Brawler.Progression
 
         private ProgressionSettings _settings;
         private Transform _target;
-        private IXpCollector _collector;
+        private PlayerProgression _collector;
         private Vector3 _velocity;
         private float _floorY;
         private float _age;
@@ -48,7 +48,7 @@ namespace Brawler.Progression
         // ============ API ============
 
         /// <summary>Drops the orb at <paramref name="position"/> with an initial <paramref name="velocity"/>.</summary>
-        public void Launch(Vector3 position, Vector3 velocity, int value, Transform target, IXpCollector collector, ProgressionSettings settings)
+        public void Launch(Vector3 position, Vector3 velocity, int value, Transform target, PlayerProgression collector, ProgressionSettings settings)
         {
             _settings = settings;
             _target = target;
