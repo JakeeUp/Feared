@@ -21,8 +21,8 @@ MonoBehaviour:
     _recovery: 26
     _cancelWindowStart: 0
     _cancelWindowEnd: 0
-  _hitboxSize: {x: 2.2, y: 1.4}
-  _hitboxOffset: {x: 1, y: 0.8}
+  _hitboxSize: {x: 3.91, y: 2.49}
+  _hitboxOffset: {x: 1.78, y: 1.42}
   _lungeSpeed: 0
   _hitStopFrames: 7
   _screenShake: 0.35

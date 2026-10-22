@@ -42,7 +42,6 @@ namespace Brawler.Editor
         /// <summary>Back edge of the 24 x 12 arena.</summary>
         private const float BackWallZ = 6.05f;
 
-        private static readonly Color ArenaFloorTint = new Color(0.72f, 0.72f, 0.8f, 1f);
 
         /// <summary>Tiles cut from tileset.png (top-left image coordinates).</summary>
         private static readonly (string Name, RectInt Rect)[] ChurchTiles =
@@ -119,6 +118,9 @@ namespace Brawler.Editor
             BuildBackWall(log);
         }
 
+        /// <summary>Cool grey for the desaturated tiles, close to the Modular Cathedral Kit's stone.</summary>
+        private static readonly Color StoneTint = new Color(0.7f, 0.7f, 0.76f);
+
         internal static Dictionary<string, Material> BuildChurchMaterials()
         {
             Directory.CreateDirectory(ChurchMaterialDir);
@@ -127,12 +129,30 @@ namespace Brawler.Editor
             {
                 string path = $"{ChurchGenerated}/church_{tile.Name}.png";
                 CropToPng(ChurchTileset, tile.Rect, path);
+                Desaturate(path);
                 Texture2D texture = ImportTiledTexture(path);
-                materials[tile.Name] = EnsureLitMaterial($"{ChurchMaterialDir}/M_Church_{tile.Name}.mat", texture, Color.white);
+                materials[tile.Name] = EnsureLitMaterial($"{ChurchMaterialDir}/M_Church_{tile.Name}.mat", texture, StoneTint);
             }
 
-            materials["floor_dark"] = EnsureLitMaterial($"{ChurchMaterialDir}/M_Church_floor_dark.mat", materials["floor"].GetTexture("_BaseMap") as Texture2D, ArenaFloorTint);
+            materials["floor_dark"] = EnsureLitMaterial($"{ChurchMaterialDir}/M_Church_floor_dark.mat", materials["floor"].GetTexture("_BaseMap") as Texture2D, new Color(0.38f, 0.37f, 0.42f));
             return materials;
+        }
+
+        /// <summary>
+        /// The tileset is drawn in pink-violet, which no tint can turn into the kit's grey stone; keep only its light
+        /// and let the material colour (and the lights) set the hue.
+        /// </summary>
+        private static void Desaturate(string path)
+        {
+            Color32[] pixels = LoadPixels(path, out int width, out int height);
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                Color32 p = pixels[i];
+                byte l = (byte)Mathf.Clamp(p.r * 0.3f + p.g * 0.59f + p.b * 0.11f, 0f, 255f);
+                pixels[i] = new Color32(l, l, l, p.a);
+            }
+
+            SavePng(path, pixels, width, height);
         }
 
         private static Material EnsureLitMaterial(string path, Texture2D texture, Color tint)
@@ -252,7 +272,7 @@ namespace Brawler.Editor
             }
 
             var material = AssetDatabase.LoadAssetAtPath<Material>(SpriteMaterialPath);
-            GameObject root = GameObject.Find("Church") ?? HeroSetup.CreateRoot("Church");
+            GameObject root = GameObject.Find("Church") ?? EditorUtil.CreateRoot("Church");
 
             // Lay the panels out edge to edge, centred on the middle one.
             float total = 0f;
@@ -297,7 +317,7 @@ namespace Brawler.Editor
                 column.rotation = Quaternion.identity;
 
                 // Solid trunk so nothing walks through it.
-                var box = HeroSetup.GetOrAdd<BoxCollider>(column.gameObject);
+                var box = EditorUtil.GetOrAdd<BoxCollider>(column.gameObject);
                 box.center = new Vector3(0f, BackWallHeight * 0.5f, 0f);
                 box.size = new Vector3(sprite.bounds.size.x * 0.45f, BackWallHeight, 0.8f);
             }
@@ -307,7 +327,7 @@ namespace Brawler.Editor
 
         internal static void ConfigureStaticSprite(GameObject go, Sprite sprite, Material material)
         {
-            var sr = HeroSetup.GetOrAdd<SpriteRenderer>(go);
+            var sr = EditorUtil.GetOrAdd<SpriteRenderer>(go);
             sr.sprite = sprite;
             sr.shadowCastingMode = ShadowCastingMode.Off;
             sr.receiveShadows = false;

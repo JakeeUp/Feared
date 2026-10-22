@@ -96,7 +96,7 @@ namespace Brawler.Editor
             Material barBack = EnsureUnlitMaterial(BarBackMaterialPath, BarBackColor);
             Material barFill = EnsureUnlitMaterial(BarFillMaterialPath, EnemyBarColor);
 
-            Transform cameraTransform = PlayerCamera(player);
+            Transform cameraTransform = EditorUtil.PlayerCamera(player);
             int hurtboxLayer = player.GetComponentInChildren<Hurtbox>(true)?.gameObject.layer ?? 0;
             EnemyController prefab = BuildPrefab(settings, clips, barBack, barFill, hurtboxLayer, log);
 
@@ -113,42 +113,33 @@ namespace Brawler.Editor
 
         // ============ Assets ============
 
-        /// <summary>Slow, readable swing. Created once with starter values; the hitbox is re-measured from the art every run.</summary>
         private static AttackData EnsureAttack(float ppu, Dictionary<string, Vector2Int> pivots, StringBuilder log)
         {
-            var attack = AssetDatabase.LoadAssetAtPath<AttackData>(AttackPath);
-            var created = attack == null;
-            if (created)
+            bool created = AssetDatabase.LoadAssetAtPath<AttackData>(AttackPath) == null;
+            var attack = AttackAssets.Ensure(AttackPath, new AttackAssets.Spec
             {
-                attack = ScriptableObject.CreateInstance<AttackData>();
-                AssetDatabase.CreateAsset(attack, AttackPath);
-            }
-
-            var so = new SerializedObject(attack);
-            if (created)
-            {
-                so.FindProperty("_damage").intValue = 8;
-                so.FindProperty("_knockback").vector2Value = new Vector2(3.5f, 0f);
-                so.FindProperty("_hitstunFrames").intValue = 18;
-                SerializedProperty frames = so.FindProperty("_frames");
-                frames.FindPropertyRelative("_startup").intValue = 18; // the telegraph: long enough to react to
-                frames.FindPropertyRelative("_active").intValue = 3;
-                frames.FindPropertyRelative("_recovery").intValue = 24;
-                frames.FindPropertyRelative("_cancelWindowStart").intValue = 0;
-                frames.FindPropertyRelative("_cancelWindowEnd").intValue = 0;
-                so.FindProperty("_lungeSpeed").floatValue = 2f;
-                so.FindProperty("_hitStopFrames").intValue = 5;
-                so.FindProperty("_screenShake").floatValue = 0.25f;
-            }
-
+                Damage = 8,
+                Knockback = new Vector2(3.5f, 0f),
+                Hitstun = 18,
+                Startup = 18,
+                Active = 3,
+                Recovery = 24,
+                Lunge = 2f,
+                HitboxSize = new Vector2(1.2f, 0.8f),
+                HitboxOffset = new Vector2(0.75f, 1f),
+                HitStop = 5,
+                Shake = 0.25f,
+            });
             if (pivots.TryGetValue("attack1", out Vector2Int pivot)
                 && HeroSetup.MeasureSwing(DarkRoot, "attack1", ppu, pivot, out Vector2 size, out Vector2 offset))
             {
-                so.FindProperty("_hitboxSize").vector2Value = size;
-                so.FindProperty("_hitboxOffset").vector2Value = offset;
+                EditorUtil.Set(attack, so =>
+                {
+                    so.FindProperty("_hitboxSize").vector2Value = size;
+                    so.FindProperty("_hitboxOffset").vector2Value = offset;
+                });
             }
 
-            so.ApplyModifiedProperties();
             log.AppendLine($"  * {(created ? "created" : "kept")} {AttackPath} (hitbox re-measured from the swing)");
             return attack;
         }
@@ -305,7 +296,7 @@ namespace Brawler.Editor
         /// <summary>Gives the player Health and the Player team so enemies can hurt it (and not each other).</summary>
         private static void PreparePlayer(PlayerController player, StringBuilder log)
         {
-            Health health = HeroSetup.GetOrAdd<Health>(player.gameObject);
+            Health health = EditorUtil.GetOrAdd<Health>(player.gameObject);
             Set(health, so => so.FindProperty("_maxHealth").intValue = PlayerMaxHealth);
             Set(player, so => so.FindProperty("_health").objectReferenceValue = health);
 
@@ -331,8 +322,8 @@ namespace Brawler.Editor
 
         private static void BuildSpawner(PlayerController player, Transform cameraTransform, EnemyController prefab, StringBuilder log)
         {
-            GameObject root = GameObject.Find("Enemies") ?? HeroSetup.CreateRoot("Enemies");
-            var coordinator = HeroSetup.GetOrAdd<EnemyCoordinator>(root);
+            GameObject root = GameObject.Find("Enemies") ?? EditorUtil.CreateRoot("Enemies");
+            var coordinator = EditorUtil.GetOrAdd<EnemyCoordinator>(root);
             Set(coordinator, so =>
             {
                 so.FindProperty("_target").objectReferenceValue = player.transform;
@@ -355,12 +346,12 @@ namespace Brawler.Editor
                 points.Add(point);
             }
 
-            var spawner = HeroSetup.GetOrAdd<EnemySpawner>(root);
+            var spawner = EditorUtil.GetOrAdd<EnemySpawner>(root);
             Set(spawner, so =>
             {
                 so.FindProperty("_prefab").objectReferenceValue = prefab;
                 so.FindProperty("_coordinator").objectReferenceValue = coordinator;
-                HeroSetup.SetArray(so.FindProperty("_spawnPoints"), points.ToArray());
+                EditorUtil.SetArray(so.FindProperty("_spawnPoints"), points.ToArray());
             });
 
             log.AppendLine($"  * scene: 'Enemies' with coordinator (max 2 attackers) and a spawner keeping {SpawnPoints.Length} Shades alive");
@@ -392,7 +383,6 @@ namespace Brawler.Editor
             return bar;
         }
 
-
         internal static GameObject Quad(string name, Transform parent, Material material)
         {
             GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
@@ -410,17 +400,9 @@ namespace Brawler.Editor
             return quad;
         }
 
-        private static Transform PlayerCamera(PlayerController player)
-        {
-            BillboardSprite billboard = player.GetComponentInChildren<BillboardSprite>(true);
-            return billboard != null ? billboard.CameraTransform : null;
-        }
-
         internal static void Set(Object target, System.Action<SerializedObject> edit)
         {
-            var so = new SerializedObject(target);
-            edit(so);
-            so.ApplyModifiedProperties();
+            EditorUtil.Set(target, edit);
         }
     }
 }

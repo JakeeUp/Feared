@@ -5,8 +5,9 @@ using UnityEngine;
 namespace Brawler.Presentation
 {
     /// <summary>
-    /// A pot (or crate...) that shatters when hit: the sprite is swapped for shards that burst out, bounce and
-    /// vanish, a puff plays, and the player's wallet gets a little score. Hits count toward the hit streak like any
+    /// A pot (or crate...) that shatters when hit: the intact visual is swapped for shards that burst out, bounce and
+    /// vanish, a puff plays, and the player's wallet gets a little score. Shards are either billboarded sprites or
+    /// the real 3D fragments of a pre-fractured model, which start assembled and tumble apart. Hits count toward the hit streak like any
     /// other (the Hitbox publishes HitEvent). Optionally comes back after a delay so the arena keeps its props.
     /// </summary>
     /// <remarks>Shard objects are created once in Awake; breaking never allocates.</remarks>
@@ -16,8 +17,8 @@ namespace Brawler.Presentation
         // ============ Serialized Fields ============
 
         [Header("Parts")]
-        [Tooltip("The intact prop sprite (on a billboarded child).")]
-        [SerializeField] private SpriteRenderer _visual;
+        [Tooltip("The intact prop: a billboarded sprite or a mesh.")]
+        [SerializeField] private Renderer _visual;
 
         [Tooltip("Hurtbox and solid colliders turned off while broken.")]
         [SerializeField] private Collider[] _colliders = new Collider[0];
@@ -27,6 +28,9 @@ namespace Brawler.Presentation
 
         [Tooltip("Material for the shards (same as the visual).")]
         [SerializeField] private Material _shardMaterial;
+
+        [Tooltip("3D fragments of a pre-fractured model, inactive and assembled in place. Used instead of shard sprites.")]
+        [SerializeField] private Transform[] _pieces = new Transform[0];
 
         [Header("Rules")]
         [Tooltip("Hits needed to break it.")]
@@ -61,6 +65,9 @@ namespace Brawler.Presentation
 
         private Transform[] _shards;
         private Vector3[] _shardVelocity;
+        private Vector3[] _shardSpin;
+        private Pose[] _pieceHome;
+        private Vector3[] _pieceScale;
         private float _shardTime;
         private int _hits;
         private bool _broken;
@@ -83,6 +90,23 @@ namespace Brawler.Presentation
                 _visualPosition = _visual.transform.localPosition;
                 var billboard = _visual.GetComponent<BillboardSprite>();
                 _camera = billboard != null ? billboard.CameraTransform : null;
+            }
+
+            if (_pieces.Length > 0)
+            {
+                _shards = _pieces;
+                _shardVelocity = new Vector3[_pieces.Length];
+                _shardSpin = new Vector3[_pieces.Length];
+                _pieceHome = new Pose[_pieces.Length];
+                _pieceScale = new Vector3[_pieces.Length];
+                for (int i = 0; i < _pieces.Length; i++)
+                {
+                    _pieceHome[i] = new Pose(_pieces[i].localPosition, _pieces[i].localRotation);
+                    _pieceScale[i] = _pieces[i].localScale;
+                    _pieces[i].gameObject.SetActive(false);
+                }
+
+                return;
             }
 
             _shards = new Transform[_shardSprites.Length];
@@ -162,8 +186,23 @@ namespace Brawler.Presentation
                 float t = _shards.Length > 1 ? i / (float)(_shards.Length - 1) : 0.5f;
                 float speed = Random.Range(_shardSpeed.x, _shardSpeed.y);
                 var direction = new Vector3(away * Mathf.Lerp(0.2f, 1f, t), Mathf.Lerp(1.4f, 0.6f, t), Random.Range(-0.5f, 0.5f)).normalized;
+                if (_pieceHome != null)
+                {
+                    // Fragments burst out from where they sit in the pot, pushed away from the blow.
+                    _shards[i].localPosition = _pieceHome[i].position;
+                    _shards[i].localRotation = _pieceHome[i].rotation;
+                    _shards[i].localScale = _pieceScale[i];
+                    Vector3 outward = _shards[i].GetComponent<Renderer>().bounds.center - center;
+                    outward.y = Mathf.Max(outward.y, 0f);
+                    direction = (outward.normalized + new Vector3(away * 0.8f, 0.9f, 0f)).normalized;
+                    _shardSpin[i] = Random.onUnitSphere * Random.Range(360f, 900f);
+                }
+                else
+                {
+                    _shards[i].position = center;
+                }
+
                 _shardVelocity[i] = direction * speed;
-                _shards[i].position = center;
                 _shards[i].gameObject.SetActive(true);
             }
 
@@ -209,8 +248,17 @@ namespace Brawler.Presentation
                 }
 
                 _shardVelocity[i] = v;
-                shard.SetPositionAndRotation(p, facing);
-                shard.localScale = Vector3.one * shrink;
+                if (_pieceHome != null)
+                {
+                    float spin = p.y <= floor + 0.01f ? 0.4f : 1f; // grinding along the floor slows the tumble
+                    shard.SetPositionAndRotation(p, Quaternion.Euler(_shardSpin[i] * (dt * spin)) * shard.rotation);
+                    shard.localScale = _pieceScale[i] * shrink;
+                }
+                else
+                {
+                    shard.SetPositionAndRotation(p, facing);
+                    shard.localScale = Vector3.one * shrink;
+                }
             }
         }
 

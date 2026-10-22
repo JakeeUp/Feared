@@ -1,3 +1,4 @@
+using Brawler.Presentation;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -28,6 +29,9 @@ namespace Brawler.Level
 
         private float _titleUntil;
         private float _toastUntil;
+        private string _titleTemplate;
+        private string _subtitleTemplate;
+        private string _toastTemplate;
 
         // ============ Properties ============
 
@@ -46,12 +50,14 @@ namespace Brawler.Level
         private void OnEnable()
         {
             Instance = this;
+            ControlHints.Changed += RefreshText;
             SetAlpha(_titleGroup, 0f);
             SetAlpha(_toastGroup, 0f);
         }
 
         private void OnDisable()
         {
+            ControlHints.Changed -= RefreshText;
             if (Instance == this)
             {
                 Instance = null;
@@ -70,31 +76,39 @@ namespace Brawler.Level
         /// <summary>Shows a big title (and optional subtitle) for <paramref name="seconds"/>.</summary>
         public void ShowTitle(string title, string subtitle, float seconds = 3f)
         {
-            if (_title != null)
-            {
-                _title.text = title;
-            }
-
-            if (_subtitle != null)
-            {
-                _subtitle.text = subtitle ?? string.Empty;
-            }
-
+            _titleTemplate = title;
+            _subtitleTemplate = subtitle ?? string.Empty;
+            RefreshText();
             _titleUntil = Time.unscaledTime + seconds;
         }
 
         /// <summary>Shows a small line near the bottom of the screen for <paramref name="seconds"/>.</summary>
         public void ShowToast(string text, float seconds = 2f)
         {
-            if (_toast != null)
-            {
-                _toast.text = text;
-            }
-
+            _toastTemplate = text;
+            RefreshText();
             _toastUntil = Time.unscaledTime + seconds;
         }
 
         // ============ Helpers ============
+
+        private void RefreshText()
+        {
+            if (_title != null)
+            {
+                _title.text = ControlHints.Format(_titleTemplate);
+            }
+
+            if (_subtitle != null)
+            {
+                _subtitle.text = ControlHints.Format(_subtitleTemplate);
+            }
+
+            if (_toast != null)
+            {
+                _toast.text = ControlHints.Format(_toastTemplate);
+            }
+        }
 
         private void Fade(CanvasGroup group, bool visible)
         {

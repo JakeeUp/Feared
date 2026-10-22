@@ -33,7 +33,6 @@ namespace Brawler.Editor
         private const string Exec = ThirdParty + "/Undead executioner puppet/png";
         private const string Generated = ThirdParty + "/_Generated/Enemies";
         private const string Root = "Assets/_MyFiles";
-        private const string ClipRoot = Root + "/Data/Animation";
         private const string DataDir = Root + "/Data/Enemy";
         private const string PrefabDir = Root + "/Prefabs";
         private const string CombatSettingsPath = Root + "/Data/Combat/CombatSettings.asset";
@@ -257,7 +256,10 @@ namespace Brawler.Editor
             new ClipDef("Death", FrameSource.Grid(Exec + "/death.png", 100, 100), 10f, false),
         };
 
-        private const float BossHeight = 1.8f;
+        private const float BossHeight = 3.2f;
+
+        // Hit volumes were tuned at 1.8 units tall; everything spatial scales with the art.
+        private const float BossScale = BossHeight / 1.8f;
 
         // ============ Menu ============
 
@@ -352,7 +354,7 @@ namespace Brawler.Editor
                 if (projectile != null)
                 {
                     launcher = root.AddComponent<ProjectileLauncher>();
-                    EnemySetup.Set(launcher, so =>
+                    EditorUtil.Set(launcher, so =>
                     {
                         so.FindProperty("_prefab").objectReferenceValue = projectile;
                         so.FindProperty("_attack").objectReferenceValue = projectileAttack;
@@ -363,7 +365,7 @@ namespace Brawler.Editor
                     });
                 }
 
-                EnemySetup.Set(enemy, so =>
+                EditorUtil.Set(enemy, so =>
                 {
                     so.FindProperty("_eventBus").objectReferenceValue = AssetDatabase.LoadAssetAtPath<EventBusAsset>(EventBusPath);
                     so.FindProperty("_settings").objectReferenceValue = settings;
@@ -377,7 +379,7 @@ namespace Brawler.Editor
                 GameObject visual = AddVisual(root.transform, clips["Idle"].GetFrame(0), enemy, out SpriteAnimator animator, out BillboardSprite billboard, out HitFlash flash);
 
                 var driver = visual.AddComponent<EnemyAnimationDriver>();
-                EnemySetup.Set(driver, so =>
+                EditorUtil.Set(driver, so =>
                 {
                     so.FindProperty("_enemy").objectReferenceValue = enemy;
                     so.FindProperty("_animator").objectReferenceValue = animator;
@@ -415,7 +417,7 @@ namespace Brawler.Editor
                 AssetDatabase.CreateAsset(settings, path);
             }
 
-            EnemySetup.Set(settings, so =>
+            EditorUtil.Set(settings, so =>
             {
                 so.FindProperty("_attack").objectReferenceValue = attack;
                 so.FindProperty("_behaviour").enumValueIndex = (int)def.Behaviour;
@@ -457,8 +459,8 @@ namespace Brawler.Editor
             float ppu = frames[0].Width / p.WorldWidth;
             string dir = $"{Generated}/{def.Name}";
             List<string> paths = WriteFrames(dir, "Shot", frames);
-            Sprite[] sprites = ImportFrames(paths, ppu, paths.Select(_ => new Vector2(0.5f, 0.5f)).ToList());
-            SpriteClip clip = SaveClip(def.Name, "Shot", sprites, p.Fps, true, false);
+            Sprite[] sprites = SpriteImport.ImportFrames(paths, ppu, new Vector2(0.5f, 0.5f));
+            SpriteClip clip = SpriteImport.SaveClip(def.Name, "Shot", sprites, p.Fps, true, false);
 
             var root = new GameObject($"Projectile_{def.Name}");
             try
@@ -471,14 +473,14 @@ namespace Brawler.Editor
                 sr.shadowCastingMode = ShadowCastingMode.Off;
                 sr.receiveShadows = false;
                 var animator = visual.AddComponent<SpriteAnimator>();
-                EnemySetup.Set(animator, so =>
+                EditorUtil.Set(animator, so =>
                 {
                     so.FindProperty("_renderer").objectReferenceValue = sr;
                     so.FindProperty("_defaultClip").objectReferenceValue = clip;
                 });
 
                 var projectile = root.AddComponent<Projectile>();
-                EnemySetup.Set(projectile, so =>
+                EditorUtil.Set(projectile, so =>
                 {
                     so.FindProperty("_combatSettings").objectReferenceValue = AssetDatabase.LoadAssetAtPath<CombatSettings>(CombatSettingsPath);
                     so.FindProperty("_eventBus").objectReferenceValue = AssetDatabase.LoadAssetAtPath<EventBusAsset>(EventBusPath);
@@ -503,12 +505,12 @@ namespace Brawler.Editor
             AttackData swipe = EnsureAttack($"{DataDir}/Attack_Boss_Swipe.asset", new AttackDef
             {
                 Damage = 16, Knockback = new Vector2(6f, 1f), Startup = 24, Active = 6, Recovery = 26,
-                HitboxSize = new Vector2(2.2f, 1.4f), HitboxOffset = new Vector2(1f, 0.8f), Hitstun = 22, HitStop = 7, Shake = 0.35f,
+                HitboxSize = new Vector2(2.2f, 1.4f) * BossScale, HitboxOffset = new Vector2(1f, 0.8f) * BossScale, Hitstun = 22, HitStop = 7, Shake = 0.35f,
             });
             AttackData dash = EnsureAttack($"{DataDir}/Attack_Boss_Dash.asset", new AttackDef
             {
                 Damage = 18, Knockback = new Vector2(8f, 0.5f), Startup = 1, Active = 1, Recovery = 1,
-                HitboxSize = new Vector2(1.3f, 1.05f), HitboxOffset = new Vector2(0.3f, 0.52f), Hitstun = 24, HitStop = 6, Shake = 0.5f,
+                HitboxSize = new Vector2(1.3f, 1.05f) * BossScale, HitboxOffset = new Vector2(0.3f, 0.52f) * BossScale, Hitstun = 24, HitStop = 6, Shake = 0.5f,
             });
             EnemyController minion = LoadEnemy("ExecMinion");
 
@@ -517,10 +519,10 @@ namespace Brawler.Editor
             {
                 var health = root.AddComponent<Health>();
                 var boss = root.AddComponent<BossController>();
-                Hurtbox hurtbox = AddHurtbox(root.transform, boss, hurtboxLayer, new Vector3(0.8f, 1.6f, 0.6f), 0.85f);
+                Hurtbox hurtbox = AddHurtbox(root.transform, boss, hurtboxLayer, new Vector3(0.8f * BossScale, 1.6f * BossScale, 0.6f), 0.85f * BossScale);
                 Hitbox hitbox = AddHitbox(root.transform, hurtbox);
 
-                EnemySetup.Set(boss, so =>
+                EditorUtil.Set(boss, so =>
                 {
                     so.FindProperty("_health").objectReferenceValue = health;
                     so.FindProperty("_hitbox").objectReferenceValue = hitbox;
@@ -528,12 +530,13 @@ namespace Brawler.Editor
                     so.FindProperty("_swipe").objectReferenceValue = swipe;
                     so.FindProperty("_dash").objectReferenceValue = dash;
                     so.FindProperty("_minionPrefab").objectReferenceValue = minion;
+                    so.FindProperty("_swipeRange").floatValue = 2.2f * BossScale;
                 });
 
-                AddShadow(root, 1f);
+                AddShadow(root, BossScale);
                 GameObject visual = AddVisual(root.transform, clips["Idle"].GetFrame(0), boss, out SpriteAnimator animator, out BillboardSprite billboard, out HitFlash flash);
                 var driver = visual.AddComponent<BossAnimationDriver>();
-                EnemySetup.Set(driver, so =>
+                EditorUtil.Set(driver, so =>
                 {
                     so.FindProperty("_boss").objectReferenceValue = boss;
                     so.FindProperty("_animator").objectReferenceValue = animator;
@@ -567,7 +570,7 @@ namespace Brawler.Editor
             box.size = size;
             box.center = new Vector3(0f, centerY, 0f);
             var hurtbox = go.AddComponent<Hurtbox>();
-            EnemySetup.Set(hurtbox, so =>
+            EditorUtil.Set(hurtbox, so =>
             {
                 so.FindProperty("_collider").objectReferenceValue = box;
                 so.FindProperty("_owner").objectReferenceValue = owner;
@@ -581,7 +584,7 @@ namespace Brawler.Editor
             var go = new GameObject("Hitbox");
             go.transform.SetParent(root, false);
             var hitbox = go.AddComponent<Hitbox>();
-            EnemySetup.Set(hitbox, so =>
+            EditorUtil.Set(hitbox, so =>
             {
                 so.FindProperty("_combatSettings").objectReferenceValue = AssetDatabase.LoadAssetAtPath<CombatSettings>(CombatSettingsPath);
                 so.FindProperty("_eventBus").objectReferenceValue = AssetDatabase.LoadAssetAtPath<EventBusAsset>(EventBusPath);
@@ -599,7 +602,7 @@ namespace Brawler.Editor
             shadow.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             shadow.transform.localScale = Vector3.one * scale;
             var blob = root.AddComponent<BlobShadow>();
-            EnemySetup.Set(blob, so =>
+            EditorUtil.Set(blob, so =>
             {
                 so.FindProperty("_shadowTransform").objectReferenceValue = shadow.transform;
                 so.FindProperty("_baseScale").floatValue = scale;
@@ -619,7 +622,7 @@ namespace Brawler.Editor
             animator = visual.AddComponent<SpriteAnimator>();
             billboard = visual.AddComponent<BillboardSprite>();
             BillboardSprite b = billboard;
-            EnemySetup.Set(b, so =>
+            EditorUtil.Set(b, so =>
             {
                 so.FindProperty("_spriteRenderer").objectReferenceValue = sr;
                 so.FindProperty("_facingSource").objectReferenceValue = facingSource;
@@ -633,49 +636,20 @@ namespace Brawler.Editor
 
         private static AttackData EnsureAttack(string path, AttackDef def)
         {
-            var attack = AssetDatabase.LoadAssetAtPath<AttackData>(path);
-            if (attack != null)
+            return AttackAssets.Ensure(path, new AttackAssets.Spec
             {
-                return attack; // created once, then left for tuning
-            }
-
-            attack = ScriptableObject.CreateInstance<AttackData>();
-            AssetDatabase.CreateAsset(attack, path);
-            EnemySetup.Set(attack, so =>
-            {
-                so.FindProperty("_damage").intValue = def.Damage;
-                so.FindProperty("_knockback").vector2Value = def.Knockback;
-                so.FindProperty("_hitstunFrames").intValue = def.Hitstun;
-                SerializedProperty frames = so.FindProperty("_frames");
-                frames.FindPropertyRelative("_startup").intValue = Mathf.Max(1, def.Startup);
-                frames.FindPropertyRelative("_active").intValue = Mathf.Max(1, def.Active);
-                frames.FindPropertyRelative("_recovery").intValue = Mathf.Max(1, def.Recovery);
-                frames.FindPropertyRelative("_cancelWindowStart").intValue = 0;
-                frames.FindPropertyRelative("_cancelWindowEnd").intValue = 0;
-                so.FindProperty("_lungeSpeed").floatValue = def.Lunge;
-                so.FindProperty("_hitboxSize").vector2Value = def.HitboxSize;
-                so.FindProperty("_hitboxOffset").vector2Value = def.HitboxOffset;
-                so.FindProperty("_hitStopFrames").intValue = def.HitStop;
-                so.FindProperty("_screenShake").floatValue = def.Shake;
+                Damage = def.Damage,
+                Knockback = def.Knockback,
+                Hitstun = def.Hitstun,
+                Startup = Mathf.Max(1, def.Startup),
+                Active = Mathf.Max(1, def.Active),
+                Recovery = Mathf.Max(1, def.Recovery),
+                Lunge = def.Lunge,
+                HitboxSize = def.HitboxSize,
+                HitboxOffset = def.HitboxOffset,
+                HitStop = def.HitStop,
+                Shake = def.Shake,
             });
-            return attack;
-        }
-
-        private static SpriteClip SaveClip(string name, string role, Sprite[] frames, float fps, bool loop, bool mirrored)
-        {
-            string dir = $"{ClipRoot}/{name}";
-            Directory.CreateDirectory(dir);
-            string path = $"{dir}/Clip_{name}_{role}.asset";
-            var clip = AssetDatabase.LoadAssetAtPath<SpriteClip>(path);
-            if (clip == null)
-            {
-                clip = ScriptableObject.CreateInstance<SpriteClip>();
-                AssetDatabase.CreateAsset(clip, path);
-            }
-
-            clip.EditorSet(frames, fps, loop, mirrored);
-            EditorUtility.SetDirty(clip);
-            return clip;
         }
 
         private static SpriteClip Clip(Dictionary<string, SpriteClip> clips, string role)
@@ -725,8 +699,8 @@ namespace Brawler.Editor
                 Vector2 normalized = new Vector2(pivot.x / (float)clipFrames[0].Width, pivot.y / (float)clipFrames[0].Height);
 
                 List<string> paths = WriteFrames(dir, def.Role, clipFrames);
-                Sprite[] sprites = ImportFrames(paths, ppu, paths.Select(_ => normalized).ToList());
-                clips[def.Role] = SaveClip(name, def.Role, sprites, def.Fps, def.Loop, mirrored);
+                Sprite[] sprites = SpriteImport.ImportFrames(paths, ppu, normalized);
+                clips[def.Role] = SpriteImport.SaveClip(name, def.Role, sprites, def.Fps, def.Loop, mirrored);
             }
 
             return clips;
@@ -758,7 +732,7 @@ namespace Brawler.Editor
 
                 foreach (string file in files)
                 {
-                    Color32[] px = PackSetup.LoadPixels(file, out int w, out int h);
+                    Color32[] px = SpriteImport.LoadPixels(file, out int w, out int h);
                     frames.Add(new Frame { Pixels = px, Width = w, Height = h });
                 }
 
@@ -770,7 +744,7 @@ namespace Brawler.Editor
                 return frames;
             }
 
-            Color32[] sheet = PackSetup.LoadPixels(source.Path, out int sw, out int sh);
+            Color32[] sheet = SpriteImport.LoadPixels(source.Path, out int sw, out int sh);
             int columns = Mathf.Max(1, sw / source.CellWidth);
             int rows = Mathf.Max(1, sh / source.CellHeight);
             int cells = columns * rows;
@@ -778,7 +752,7 @@ namespace Brawler.Editor
             for (int i = source.First; i < last; i++)
             {
                 var rect = new RectInt(i % columns * source.CellWidth, i / columns * source.CellHeight, source.CellWidth, source.CellHeight);
-                Color32[] px = PackSetup.Crop(sheet, sw, sh, rect);
+                Color32[] px = SpriteImport.Crop(sheet, sw, sh, rect);
                 var frame = new Frame { Pixels = px, Width = rect.width, Height = rect.height };
                 if (source.Count > 0 || Bounds(frame).width > 0)
                 {
@@ -796,58 +770,11 @@ namespace Brawler.Editor
             for (int i = 0; i < frames.Count; i++)
             {
                 string path = $"{dir}/{role}_{i:00}.png";
-                var tex = new Texture2D(frames[i].Width, frames[i].Height, TextureFormat.RGBA32, false);
-                tex.SetPixels32(frames[i].Pixels);
-                File.WriteAllBytes(path, tex.EncodeToPNG());
-                Object.DestroyImmediate(tex);
+                SpriteImport.SavePng(path, frames[i].Pixels, frames[i].Width, frames[i].Height);
                 paths.Add(path);
             }
 
             return paths;
-        }
-
-        /// <summary>Imports a batch of frame PNGs as crisp sprites in one asset-editing pass.</summary>
-        private static Sprite[] ImportFrames(List<string> paths, float ppu, List<Vector2> pivots)
-        {
-            foreach (string path in paths)
-            {
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
-            }
-
-            try
-            {
-                AssetDatabase.StartAssetEditing();
-                for (int i = 0; i < paths.Count; i++)
-                {
-                    var importer = (TextureImporter)AssetImporter.GetAtPath(paths[i]);
-                    if (importer == null)
-                    {
-                        continue;
-                    }
-
-                    importer.textureType = TextureImporterType.Sprite;
-                    importer.spriteImportMode = SpriteImportMode.Single;
-                    importer.spritePixelsPerUnit = ppu;
-                    importer.filterMode = FilterMode.Point;
-                    importer.textureCompression = TextureImporterCompression.Uncompressed;
-                    importer.mipmapEnabled = false;
-                    importer.alphaIsTransparency = true;
-                    importer.wrapMode = TextureWrapMode.Clamp;
-                    var settings = new TextureImporterSettings();
-                    importer.ReadTextureSettings(settings);
-                    settings.spriteAlignment = (int)SpriteAlignment.Custom;
-                    settings.spritePivot = pivots[i];
-                    settings.spriteMeshType = SpriteMeshType.FullRect;
-                    importer.SetTextureSettings(settings);
-                    importer.SaveAndReimport();
-                }
-            }
-            finally
-            {
-                AssetDatabase.StopAssetEditing();
-            }
-
-            return paths.Select(AssetDatabase.LoadAssetAtPath<Sprite>).Where(s => s != null).ToArray();
         }
 
         /// <summary>Median horizontal centre of the art across the clip, and its lowest solid row (feet). Pixels, bottom-up.</summary>
@@ -876,27 +803,9 @@ namespace Brawler.Editor
             return new Vector2Int(Mathf.RoundToInt(centres[centres.Count / 2]), feet);
         }
 
-        /// <summary>Bounding box of the solid pixels (bottom-up). Zero width when the frame is empty.</summary>
         private static RectInt Bounds(Frame frame)
         {
-            int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
-            for (int y = 0; y < frame.Height; y++)
-            {
-                for (int x = 0; x < frame.Width; x++)
-                {
-                    if (frame.Pixels[y * frame.Width + x].a < SolidAlpha)
-                    {
-                        continue;
-                    }
-
-                    minX = Mathf.Min(minX, x);
-                    maxX = Mathf.Max(maxX, x);
-                    minY = Mathf.Min(minY, y);
-                    maxY = Mathf.Max(maxY, y);
-                }
-            }
-
-            return maxX < 0 ? new RectInt(0, 0, 0, 0) : new RectInt(minX, minY, maxX - minX + 1, maxY - minY + 1);
+            return SpriteImport.Bounds(frame.Pixels, frame.Width, frame.Height, SolidAlpha);
         }
     }
 }

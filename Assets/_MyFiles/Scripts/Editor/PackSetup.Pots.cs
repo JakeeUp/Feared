@@ -57,9 +57,39 @@ namespace Brawler.Editor
 
         private static void BuildPots(PlayerController player, VfxPlayer vfx, Transform cameraTransform, StringBuilder log)
         {
-            if (!File.Exists(PotSheet))
+            bool models = Pots3DAvailable();
+            if (!models && !File.Exists(PotSheet))
             {
-                log.AppendLine($"  ! pots skipped: {PotSheet} not found");
+                log.AppendLine($"  ! pots skipped: neither {Pots3DRoot} nor {PotSheet} found");
+                return;
+            }
+
+            var wallet = player.GetComponent<ScoreWallet>();
+            SpriteClip puff = AssetDatabase.LoadAssetAtPath<SpriteClip>($"{VfxClipDir}/Clip_Vfx_Puff.asset");
+            int hurtboxLayer = player.GetComponentInChildren<Hurtbox>(true)?.gameObject.layer ?? 0;
+
+            // The Cathedral places its own pots along the level (CathedralBuilder) instead of the arena set.
+            (Vector3 Position, int Colour, int Shape)[] placements = CathedralBuilder.IsCathedralScene()
+                ? CathedralBuilder.PotPlacements
+                : PotPlacements.Select(p => (new Vector3(p.X, 0f, p.Z), p.Colour, p.Shape)).ToArray();
+
+            GameObject old = GameObject.Find(PotRootName);
+            if (old != null)
+            {
+                Undo.DestroyObjectImmediate(old);
+            }
+
+            GameObject root = EditorUtil.CreateRoot(PotRootName);
+            if (models)
+            {
+                for (int i = 0; i < placements.Length; i++)
+                {
+                    var place = placements[i];
+                    BuildPot3D(root.transform, i, place.Position, place.Colour, place.Shape, PotShapes[place.Shape].Hits,
+                               hurtboxLayer, wallet, vfx, puff);
+                }
+
+                log.AppendLine($"  * {placements.Length} breakable 3D pots (pre-fractured models; score when smashed, back after 20 s)");
                 return;
             }
 
@@ -87,23 +117,7 @@ namespace Brawler.Editor
                 }
             }
 
-            var wallet = player.GetComponent<ScoreWallet>();
             var material = AssetDatabase.LoadAssetAtPath<Material>(SpriteMaterialPath);
-            SpriteClip puff = AssetDatabase.LoadAssetAtPath<SpriteClip>($"{VfxClipDir}/Clip_Vfx_Puff.asset");
-            int hurtboxLayer = player.GetComponentInChildren<Hurtbox>(true)?.gameObject.layer ?? 0;
-
-            // The Cathedral places its own pots along the level (CathedralBuilder) instead of the arena set.
-            (Vector3 Position, int Colour, int Shape)[] placements = CathedralBuilder.IsCathedralScene()
-                ? CathedralBuilder.PotPlacements
-                : PotPlacements.Select(p => (new Vector3(p.X, 0f, p.Z), p.Colour, p.Shape)).ToArray();
-
-            GameObject old = GameObject.Find(PotRootName);
-            if (old != null)
-            {
-                Undo.DestroyObjectImmediate(old);
-            }
-
-            GameObject root = HeroSetup.CreateRoot(PotRootName);
             for (int i = 0; i < placements.Length; i++)
             {
                 var place = placements[i];
@@ -148,25 +162,12 @@ namespace Brawler.Editor
 
             var prop = go.AddComponent<BreakableProp>();
 
-            // Hurtbox: neutral team, so the player and enemies can both smash it.
-            var hurtGo = new GameObject("Hurtbox");
-            hurtGo.layer = hurtboxLayer;
-            hurtGo.transform.SetParent(go.transform, false);
-            var trigger = hurtGo.AddComponent<BoxCollider>();
-            trigger.isTrigger = true;
-            trigger.size = new Vector3(size.x, size.y, 0.6f);
-            trigger.center = new Vector3(0f, size.y * 0.5f, 0f);
-            var hurtbox = hurtGo.AddComponent<Hurtbox>();
-            var hurtSo = new SerializedObject(hurtbox);
-            hurtSo.FindProperty("_collider").objectReferenceValue = trigger;
-            hurtSo.FindProperty("_owner").objectReferenceValue = prop;
-            hurtSo.FindProperty("_team").enumValueIndex = (int)CombatTeam.Neutral;
-            hurtSo.ApplyModifiedProperties();
+            BoxCollider trigger = AddPropHurtbox(go, prop, hurtboxLayer, new Vector3(size.x, size.y, 0.6f));
 
             var so = new SerializedObject(prop);
             so.FindProperty("_visual").objectReferenceValue = sr;
-            HeroSetup.SetArray(so.FindProperty("_colliders"), solid, trigger);
-            HeroSetup.SetArray(so.FindProperty("_shardSprites"), shards.Cast<Object>().ToArray());
+            EditorUtil.SetArray(so.FindProperty("_colliders"), solid, trigger);
+            EditorUtil.SetArray(so.FindProperty("_shardSprites"), shards.Cast<Object>().ToArray());
             so.FindProperty("_shardMaterial").objectReferenceValue = material;
             so.FindProperty("_hitsToBreak").intValue = hits;
             so.FindProperty("_scoreReward").intValue = hits > 1 ? 50 : 25;
@@ -174,6 +175,25 @@ namespace Brawler.Editor
             so.FindProperty("_vfx").objectReferenceValue = vfx;
             so.FindProperty("_breakClip").objectReferenceValue = puff;
             so.ApplyModifiedProperties();
+        }
+
+        /// <summary>Hurtbox on the neutral team, so the player and enemies can both smash the prop.</summary>
+        private static BoxCollider AddPropHurtbox(GameObject go, MonoBehaviour prop, int layer, Vector3 size)
+        {
+            var hurtGo = new GameObject("Hurtbox") { layer = layer };
+            hurtGo.transform.SetParent(go.transform, false);
+            var trigger = hurtGo.AddComponent<BoxCollider>();
+            trigger.isTrigger = true;
+            trigger.size = size;
+            trigger.center = new Vector3(0f, size.y * 0.5f, 0f);
+            var hurtbox = hurtGo.AddComponent<Hurtbox>();
+            EditorUtil.Set(hurtbox, so =>
+            {
+                so.FindProperty("_collider").objectReferenceValue = trigger;
+                so.FindProperty("_owner").objectReferenceValue = prop;
+                so.FindProperty("_team").enumValueIndex = (int)CombatTeam.Neutral;
+            });
+            return trigger;
         }
     }
 }

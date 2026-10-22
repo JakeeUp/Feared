@@ -91,8 +91,8 @@ namespace Brawler.Editor
                 return null;
             }
 
-            GameObject go = GameObject.Find("Vfx") ?? HeroSetup.CreateRoot("Vfx");
-            var vfx = HeroSetup.GetOrAdd<VfxPlayer>(go);
+            GameObject go = GameObject.Find("Vfx") ?? EditorUtil.CreateRoot("Vfx");
+            var vfx = EditorUtil.GetOrAdd<VfxPlayer>(go);
             var so = new SerializedObject(vfx);
             so.FindProperty("_eventBus").objectReferenceValue = eventBus;
             so.FindProperty("_cameraTransform").objectReferenceValue = cameraTransform;
@@ -126,7 +126,7 @@ namespace Brawler.Editor
 
         private static void WirePlayerFx(PlayerController player, VfxPlayer vfx, Dictionary<string, SpriteClip> clips)
         {
-            var fx = HeroSetup.GetOrAdd<PlayerFx>(player.gameObject);
+            var fx = EditorUtil.GetOrAdd<PlayerFx>(player.gameObject);
             var so = new SerializedObject(fx);
             so.FindProperty("_player").objectReferenceValue = player;
             so.FindProperty("_vfx").objectReferenceValue = vfx;

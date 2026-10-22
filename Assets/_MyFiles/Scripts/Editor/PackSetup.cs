@@ -1,4 +1,3 @@
-using System.IO;
 using System.Text;
 using Brawler.Core;
 using Brawler.Player;
@@ -58,6 +57,8 @@ namespace Brawler.Editor
             }
             VfxPlayer vfx = BuildVfx(player, eventBus, cameraTransform, log);
             BuildPots(player, vfx, cameraTransform, log);
+            BuildChests(player, vfx, log);
+            BuildAudio(player, eventBus, log);
 
             EditorSceneManager.MarkSceneDirty(player.gameObject.scene);
             AssetDatabase.SaveAssets();
@@ -66,127 +67,46 @@ namespace Brawler.Editor
 
         // ============ Image Helpers ============
 
-        /// <summary>Reads a PNG's pixels straight from disk (bottom-up rows, like Texture2D).</summary>
         internal static Color32[] LoadPixels(string path, out int width, out int height)
         {
-            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            tex.LoadImage(File.ReadAllBytes(path));
-            Color32[] pixels = tex.GetPixels32();
-            width = tex.width;
-            height = tex.height;
-            Object.DestroyImmediate(tex);
-            return pixels;
+            return SpriteImport.LoadPixels(path, out width, out height);
         }
 
-        /// <summary>Cuts a rectangle given in image coordinates (top-left origin, as in an image editor).</summary>
         internal static Color32[] Crop(Color32[] pixels, int width, int height, RectInt topLeftRect)
         {
-            int w = topLeftRect.width, h = topLeftRect.height;
-            int bottom = height - topLeftRect.y - h;
-            var block = new Color32[w * h];
-            for (int row = 0; row < h; row++)
-            {
-                System.Array.Copy(pixels, (bottom + row) * width + topLeftRect.x, block, row * w, w);
-            }
-
-            return block;
+            return SpriteImport.Crop(pixels, width, height, topLeftRect);
         }
 
-        /// <summary>Writes pixels to a PNG under the project and imports it.</summary>
         internal static void SavePng(string path, Color32[] pixels, int width, int height)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path));
-            var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-            tex.SetPixels32(pixels);
-            File.WriteAllBytes(path, tex.EncodeToPNG());
-            Object.DestroyImmediate(tex);
-            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+            SpriteImport.SavePng(path, pixels, width, height);
         }
 
-        /// <summary>Crops a rectangle (top-left image coordinates) out of a pack image into its own PNG.</summary>
         internal static bool CropToPng(string source, RectInt topLeftRect, string destination)
         {
-            if (!File.Exists(source))
-            {
-                return false;
-            }
-
-            Color32[] all = LoadPixels(source, out int w, out int h);
-            SavePng(destination, Crop(all, w, h, topLeftRect), topLeftRect.width, topLeftRect.height);
-            return true;
+            return SpriteImport.CropToPng(source, topLeftRect, destination);
         }
 
-        /// <summary>Imports an image as a crisp single sprite.</summary>
-        /// <param name="path">Asset path.</param>
-        /// <param name="pixelsPerUnit">World scale.</param>
-        /// <param name="pivot">Normalised pivot (0,0 = bottom-left).</param>
-        /// <param name="border">9-slice border in pixels (left, bottom, right, top); zero for none.</param>
         internal static Sprite ImportSprite(string path, float pixelsPerUnit, Vector2 pivot, Vector4 border = default)
         {
-            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
-            if (importer == null)
-            {
-                return null;
-            }
-
-            importer.textureType = TextureImporterType.Sprite;
-            importer.spriteImportMode = SpriteImportMode.Single;
-            importer.spritePixelsPerUnit = pixelsPerUnit;
-            importer.filterMode = FilterMode.Point;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.mipmapEnabled = false;
-            importer.alphaIsTransparency = true;
-            importer.wrapMode = TextureWrapMode.Clamp;
-
-            var settings = new TextureImporterSettings();
-            importer.ReadTextureSettings(settings);
-            settings.spriteAlignment = (int)SpriteAlignment.Custom;
-            settings.spritePivot = pivot;
-            settings.spriteMeshType = SpriteMeshType.FullRect;
-            settings.spriteBorder = border;
-            importer.SetTextureSettings(settings);
-            importer.SaveAndReimport();
-            return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            return SpriteImport.ImportSprite(path, pixelsPerUnit, pivot, border);
         }
 
-        /// <summary>Imports an image as a repeating pixel-art texture (for tiled 3D surfaces).</summary>
         internal static Texture2D ImportTiledTexture(string path)
         {
-            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
-            if (importer == null)
-            {
-                return null;
-            }
-
-            importer.textureType = TextureImporterType.Default;
-            importer.filterMode = FilterMode.Point;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.mipmapEnabled = false;
-            importer.wrapMode = TextureWrapMode.Repeat;
-            importer.SaveAndReimport();
-            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            return SpriteImport.ImportTiledTexture(path);
         }
 
         // ============ Scene Helpers ============
 
         internal static Transform PlayerCamera(PlayerController player)
         {
-            BillboardSprite billboard = player.GetComponentInChildren<BillboardSprite>(true);
-            return billboard != null ? billboard.CameraTransform : null;
+            return EditorUtil.PlayerCamera(player);
         }
 
         internal static Transform FindOrCreateChild(Transform parent, string name)
         {
-            Transform child = parent.Find(name);
-            if (child != null)
-            {
-                return child;
-            }
-
-            var go = new GameObject(name);
-            Undo.RegisterCreatedObjectUndo(go, "Create " + name);
-            go.transform.SetParent(parent, false);
-            return go.transform;
+            return EditorUtil.FindOrCreateChild(parent, name);
         }
     }
 }

@@ -90,7 +90,7 @@ SpriteRenderer:
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 2.9032257, y: 2.9032257}
+  m_Size: {x: 5.16129, y: 5.16129}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -296,7 +296,7 @@ MonoBehaviour:
   _staggerSeconds: 0.9
   _moveSpeed: 2.2
   _hoverHeight: 0.15
-  _swipeRange: 2.2
+  _swipeRange: 3.9111116
   _swipe: {fileID: 11400000, guid: a4c56773f426ea84fb4c30f254a457e2, type: 2}
   _dash: {fileID: 11400000, guid: 3970d0ea4da835b41bbd9fba674b9c40, type: 2}
   _dashWindup: 0.75
@@ -328,7 +328,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   _maxDistance: 5
-  _baseScale: 1
+  _baseScale: 1.7777779
   _minScaleAtMaxDistance: 0.4
   _groundOffset: 0.01
 --- !u!1 &6478088871762421611
@@ -359,7 +359,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: 0.01, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.7777779, y: 1.7777779, z: 1.7777779}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 880971472707230678}
@@ -473,8 +473,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.8, y: 1.6, z: 0.6}
-  m_Center: {x: 0, y: 0.85, z: 0}
+  m_Size: {x: 1.4222224, y: 2.8444448, z: 0.6}
+  m_Center: {x: 0, y: 1.5111113, z: 0}
 --- !u!114 &4773487726956005025
 MonoBehaviour:
   m_ObjectHideFlags: 0

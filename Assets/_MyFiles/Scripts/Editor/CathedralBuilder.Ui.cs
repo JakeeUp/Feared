@@ -55,7 +55,25 @@ namespace Brawler.Editor
 
             BuildBanner(root, font);
             BuildBossBar(root, font, white);
-            log.AppendLine("  * UI: section banner, toasts and boss bar on the LevelUI canvas");
+            ctx.ScreenFade = BuildScreenFade(root, white);
+            log.AppendLine("  * UI: section banner, toasts, boss bar and door fade on the LevelUI canvas");
+        }
+
+        /// <summary>Full-screen black overlay, transparent until a <see cref="Doorway"/> fades through it.</summary>
+        private static CanvasGroup BuildScreenFade(RectTransform root, Sprite white)
+        {
+            RectTransform rect = Rect(root, "ScreenFade", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            var image = rect.gameObject.AddComponent<Image>();
+            image.sprite = white;
+            image.color = Color.black;
+            image.raycastTarget = false;
+            var group = rect.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+            group.interactable = false;
+            group.blocksRaycasts = false;
+            return group;
         }
 
         private static void BuildBanner(RectTransform root, Font font)

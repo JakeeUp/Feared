@@ -85,23 +85,6 @@ namespace Brawler.Editor
             public const string Capacity = "_capacity";
         }
 
-        private static class AttackDataProps
-        {
-            public const string Damage = "_damage";
-            public const string Knockback = "_knockback";
-            public const string HitstunFrames = "_hitstunFrames";
-            public const string FramesStartup = "_frames._startup";
-            public const string FramesActive = "_frames._active";
-            public const string FramesRecovery = "_frames._recovery";
-            public const string FramesCancelStart = "_frames._cancelWindowStart";
-            public const string FramesCancelEnd = "_frames._cancelWindowEnd";
-            public const string HitboxSize = "_hitboxSize";
-            public const string HitboxOffset = "_hitboxOffset";
-            public const string LungeSpeed = "_lungeSpeed";
-            public const string HitStopFrames = "_hitStopFrames";
-            public const string ScreenShake = "_screenShake";
-        }
-
         private static class ComboDataProps
         {
             public const string Attacks = "_attacks";
@@ -227,7 +210,6 @@ namespace Brawler.Editor
         {
             public const string EventBus = "_eventBus";
             public const string Settings = "_settings";
-            public const string ShakeTransform = "_shakeTransform"; // ScreenShake
             public const string Prefab = "_prefab";                 // DamageNumberSpawner
             public const string CameraTransform = "_cameraTransform"; // DamageNumberSpawner
         }
@@ -477,7 +459,7 @@ namespace Brawler.Editor
                 ConfigureSpriteImporter(importer);
             }
 
-            Sprite sprite = LoadSprite(assetPath);
+            Sprite sprite = SpriteImport.LoadSprite(assetPath);
             if (sprite == null)
             {
                 Debug.LogError($"[Brawler] Could not load a Sprite from {assetPath}.");
@@ -506,11 +488,6 @@ namespace Brawler.Editor
             importer.SetTextureSettings(settings);
 
             importer.SaveAndReimport();
-        }
-
-        private static Sprite LoadSprite(string assetPath)
-        {
-            return AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
         }
 
         /// <summary>
@@ -723,22 +700,25 @@ namespace Brawler.Editor
             int hitstun, int startup, int active, int recovery, int cancelStart, int cancelEnd,
             Vector2 hitboxSize, Vector2 hitboxOffset, float lunge, int hitStopFrames, float shake)
         {
-            return EnsureAsset<AttackData>(assetPath, log, so =>
+            bool exists = AssetDatabase.LoadAssetAtPath<AttackData>(assetPath) != null;
+            AttackData attack = AttackAssets.Ensure(assetPath, new AttackAssets.Spec
             {
-                SetInt(so, AttackDataProps.Damage, damage);
-                SetVector2(so, AttackDataProps.Knockback, knockback);
-                SetInt(so, AttackDataProps.HitstunFrames, hitstun);
-                SetInt(so, AttackDataProps.FramesStartup, startup);
-                SetInt(so, AttackDataProps.FramesActive, active);
-                SetInt(so, AttackDataProps.FramesRecovery, recovery);
-                SetInt(so, AttackDataProps.FramesCancelStart, cancelStart);
-                SetInt(so, AttackDataProps.FramesCancelEnd, cancelEnd);
-                SetVector2(so, AttackDataProps.HitboxSize, hitboxSize);
-                SetVector2(so, AttackDataProps.HitboxOffset, hitboxOffset);
-                SetFloat(so, AttackDataProps.LungeSpeed, lunge);
-                SetInt(so, AttackDataProps.HitStopFrames, hitStopFrames);
-                SetFloat(so, AttackDataProps.ScreenShake, shake);
+                Damage = damage,
+                Knockback = knockback,
+                Hitstun = hitstun,
+                Startup = startup,
+                Active = active,
+                Recovery = recovery,
+                CancelStart = cancelStart,
+                CancelEnd = cancelEnd,
+                HitboxSize = hitboxSize,
+                HitboxOffset = hitboxOffset,
+                Lunge = lunge,
+                HitStop = hitStopFrames,
+                Shake = shake,
             });
+            log.AppendLine(exists ? $"  = asset {assetPath} (exists, untouched)" : $"  + asset {assetPath}");
+            return attack;
         }
 
         // ============ Damage Number Prefab ============
@@ -819,8 +799,8 @@ namespace Brawler.Editor
             ctx.ShadowMaterial = AssetDatabase.LoadAssetAtPath<Material>(MatBlobShadowPath);
             ctx.GroundMaterial = AssetDatabase.LoadAssetAtPath<Material>(MatGroundPath);
             ctx.PropMaterial = AssetDatabase.LoadAssetAtPath<Material>(MatPropPath);
-            ctx.PlayerSprite = LoadSprite(SpritePlayerPath);
-            ctx.DummySprite = LoadSprite(SpriteDummyPath);
+            ctx.PlayerSprite = SpriteImport.LoadSprite(SpritePlayerPath);
+            ctx.DummySprite = SpriteImport.LoadSprite(SpriteDummyPath);
             ctx.EventBus = AssetDatabase.LoadAssetAtPath<EventBusAsset>(AssetEventBusPath);
             ctx.InputBufferSettings = AssetDatabase.LoadAssetAtPath<InputBufferSettings>(AssetInputBufferPath);
             ctx.CombatSettings = AssetDatabase.LoadAssetAtPath<CombatSettings>(AssetCombatSettingsPath);
@@ -865,13 +845,14 @@ namespace Brawler.Editor
             Transform player = CreatePlayer(ctx, log);
             CreateDummy(ctx, "Dummy_A", DummyAPosition);
             CreateDummy(ctx, "Dummy_B", DummyBPosition);
-            CreateFeedback(ctx, shakeRoot);
+            CreateFeedback(ctx);
 
             // Rig target needs the player, which needs the camera transform → wire after both exist.
             var rigSo = new SerializedObject(rig);
             SetObject(rigSo, CameraRigProps.Target, player);
             rigSo.ApplyModifiedPropertiesWithoutUndo();
-            rig.transform.position = player.position + (ctx.CameraSettings != null ? ctx.CameraSettings.TargetOffset : Vector3.up);
+            rig.ApplySettings();
+            rig.SnapToTarget();
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -1036,7 +1017,7 @@ namespace Brawler.Editor
             CreateHurtbox(root.transform, dummy);
         }
 
-        private static void CreateFeedback(SceneContext ctx, Transform shakeRoot)
+        private static void CreateFeedback(SceneContext ctx)
         {
             var go = new GameObject("Feedback");
 
@@ -1050,7 +1031,6 @@ namespace Brawler.Editor
             var shSo = new SerializedObject(shake);
             SetObject(shSo, FeedbackListenerProps.EventBus, ctx.EventBus);
             SetObject(shSo, FeedbackListenerProps.Settings, ctx.FeedbackSettings);
-            SetObject(shSo, FeedbackListenerProps.ShakeTransform, shakeRoot);
             shSo.ApplyModifiedPropertiesWithoutUndo();
 
             var spawner = go.AddComponent<DamageNumberSpawner>();
