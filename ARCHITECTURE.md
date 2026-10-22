@@ -1,9 +1,7 @@
-# Brawler — Architecture (Day One Scaffold)
+# Historical architecture archive
 
-Unity 6000.6.6f1 · URP 17.6 · Input System 1.20 · WebGL target.
-2D side-view sprites billboarded in a 3D world, fixed angled camera. **Gameplay lives on the X/Z plane** (X = left/right, Z = depth lane, Y = up/gravity). Sprites are visual only.
-
-> **SCAFFOLD MODE.** Everything listed here gets created with signatures, XML docs and Inspector wiring. Gameplay method bodies are empty with `// TODO: ...` and return `default`/`false`. Plumbing (asmdefs, input asset, shaders, materials, placeholder art, editor scene builder, trivial data access) may be fully implemented.
+This is the original Day One scaffold specification, not a description of the current implementation.
+Keep it for historical reference; current behavior and setup are documented in README.md and the source.
 
 ---
 
