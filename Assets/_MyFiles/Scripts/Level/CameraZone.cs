@@ -1,17 +1,13 @@
 using System.Collections.Generic;
+using Brawler.Presentation;
+using Unity.Cinemachine;
 using UnityEngine;
 
 namespace Brawler.Level
 {
-    /// <summary>
-    /// A region of the level with its own camera framing (pulled back for grapple swings, looking ahead down a
-    /// descent...). The <see cref="CameraZoneDirector"/> picks the zone the player stands in every frame, so walking
-    /// back into an earlier room restores its framing too. Uses this object's BoxCollider bounds (a trigger).
-    /// </summary>
     [RequireComponent(typeof(BoxCollider))]
     public sealed class CameraZone : MonoBehaviour
     {
-        // ============ Serialized Fields ============
 
         [Tooltip("Extra camera distance on top of the default (units).")]
         [SerializeField] private float _extraDistance = 3f;
@@ -22,31 +18,26 @@ namespace Brawler.Level
         [Tooltip("Extra camera yaw (degrees). A slight angle shows the sides of the 3D set; movement stays on the level's axes.")]
         [SerializeField, Range(-35f, 35f)] private float _yaw;
 
+        [Tooltip("Camera pitch for this zone (degrees); 0 keeps the default. Outdoor dioramas look down more steeply.")]
+        [SerializeField, Range(0f, 80f)] private float _pitch;
+
+        [Tooltip("Vertical field of view for this zone; 0 keeps the default. A narrow lens from far away flattens the scene into a miniature.")]
+        [SerializeField, Range(0f, 90f)] private float _fieldOfView;
+
         [Tooltip("When zones overlap, the higher priority wins.")]
         [SerializeField] private int _priority;
 
-        // ============ Runtime ============
+        [SerializeField, HideInInspector] private CinemachineCamera _camera;
 
         private static readonly List<CameraZone> Active = new List<CameraZone>();
         private BoxCollider _box;
 
-        // ============ Properties ============
-
-        /// <summary>Extra camera distance (units).</summary>
         public float ExtraDistance => _extraDistance;
 
-        /// <summary>Look-point shift (units).</summary>
         public Vector3 Offset => _offset;
 
-        /// <summary>Extra camera yaw (degrees).</summary>
         public float Yaw => _yaw;
 
-        // ============ Lifecycle ============
-
-        /// <summary>
-        /// Clears the list on entering Play Mode. The project disables domain reload, so statics would otherwise keep
-        /// destroyed objects from the previous session.
-        /// </summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
@@ -61,24 +52,43 @@ namespace Brawler.Level
 
         private void OnEnable()
         {
-            Active.Add(this);
+            if (!Active.Contains(this))
+            {
+                Active.Add(this);
+            }
         }
 
         private void OnDisable()
         {
             Active.Remove(this);
+            if (_camera != null)
+            {
+                _camera.Priority = -1;
+                _camera.Prioritize();
+            }
         }
 
-        // ============ API ============
+        public CinemachineCamera GetCamera(CameraRig rig)
+        {
+            if (_camera == null)
+            {
+                _camera = rig.CreateCamera(transform, "Room Camera", _extraDistance, _offset, _yaw, _pitch, _fieldOfView);
+            }
+            else
+            {
+                rig.ConfigureCamera(_camera, _extraDistance, _offset, _yaw, _pitch, _fieldOfView);
+            }
 
-        /// <summary>The highest-priority zone containing <paramref name="point"/>, or null.</summary>
+            return _camera;
+        }
+
         public static CameraZone Find(Vector3 point)
         {
             CameraZone best = null;
             for (int i = 0; i < Active.Count; i++)
             {
                 CameraZone zone = Active[i];
-                if (zone._box != null && zone._box.bounds.Contains(point) && (best == null || zone._priority > best._priority))
+                if (zone != null && zone._box != null && zone._box.bounds.Contains(point) && (best == null || zone._priority > best._priority))
                 {
                     best = zone;
                 }

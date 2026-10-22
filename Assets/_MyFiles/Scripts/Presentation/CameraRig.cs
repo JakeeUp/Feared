@@ -1,71 +1,25 @@
+using System;
+using Unity.Cinemachine;
 using UnityEngine;
 
 namespace Brawler.Presentation
 {
-    /// <summary>
-    /// Fixed-angle follow camera (Octopath / Paper Mario style). Hierarchy:
-    /// <c>CameraRig</c> (this, follows the target) → <c>Pivot</c> (pitch/yaw) → <c>ShakeRoot</c> (ScreenShake offsets
-    /// its localPosition) → <c>Main Camera</c> (local position (0, 0, -Distance)).
-    /// </summary>
-    /// <remarks>
-    /// Follow runs in LateUpdate with <b>scaled</b> time (during hitstop the target is frozen, so the rig is too).
-    /// Runs before <see cref="BillboardSprite"/> via <see cref="ExecutionOrder"/>.
-    /// </remarks>
     [DefaultExecutionOrder(ExecutionOrder)]
     [DisallowMultipleComponent]
     public sealed class CameraRig : MonoBehaviour
     {
-        // ============ Constants ============
-
-        /// <summary>Script execution order. Late so the target has finished moving; billboards run after this.</summary>
         public const int ExecutionOrder = 100;
 
-        // ============ Serialized Fields ============
-
-        [Header("References")]
-        [Tooltip("Transform to follow (the Player root). Null = the rig stays where it is.")]
         [SerializeField] private Transform _target;
-
-        [Tooltip("Angle, distance, FOV and follow tuning.")]
         [SerializeField] private CameraRigSettings _settings;
-
-        [Tooltip("Child that carries the pitch/yaw rotation. The camera sits under it (via ShakeRoot) at local (0, 0, -Distance).")]
         [SerializeField] private Transform _pivot;
-
-        [Tooltip("The rig's camera. Its FOV is driven by the settings.")]
         [SerializeField] private Camera _camera;
+        [SerializeField, HideInInspector] private CinemachineCamera _defaultCamera;
 
-        // ============ State ============
+        private CinemachineCamera _framingCamera;
 
-        /// <summary>SmoothDamp velocity (ref parameter); reset on snap.</summary>
-        private Vector3 _followVelocity;
-
-        /// <summary>SmoothDamp velocity for the (lazier) vertical follow.</summary>
-        private float _followVelocityY;
-
-        // Level framing on top of the settings (camera zones): current values ease toward the requested ones.
-        private float _framingDistance;
-        private Vector3 _framingOffset;
-        private float _framingDistanceGoal;
-        private Vector3 _framingOffsetGoal;
-        private float _framingYaw;
-        private float _framingYawGoal;
-
-        /// <summary>How fast framing changes settle (1/s, exponential on real time).</summary>
-        private const float FramingRate = 2.5f;
-
-        /// <summary>Vertical follow smooth time = FollowSmoothTime × this.</summary>
-        private const float VerticalLag = 3f;
-
-        // ============ Properties ============
-
-        /// <summary>The rig camera (for systems that need projection, e.g. future screen-space UI).</summary>
         public Camera Camera => _camera;
-
-        /// <summary>Current SmoothDamp velocity (debug/inspection).</summary>
-        public Vector3 FollowVelocity => _followVelocity;
-
-        // ============ Lifecycle ============
+        public event Action BeforeSnap;
 
         private void Awake()
         {
@@ -77,123 +31,188 @@ namespace Brawler.Presentation
             SnapToTarget();
         }
 
-        private void LateUpdate()
-        {
-            UpdateFraming();
-            if (_target == null)
-            {
-                return;
-            }
-
-            Vector3 goal = GetGoalPosition();
-            float smoothTime = _settings != null ? _settings.FollowSmoothTime : 0f;
-            if (smoothTime <= 0f)
-            {
-                transform.position = goal;
-                return;
-            }
-
-            // Scaled time: the camera holds still during hitstop.
-            float dt = Time.deltaTime;
-            if (dt <= 0f)
-            {
-                return;
-            }
-
-            // Y follows lazier than X/Z so jumps don't bob the whole screen.
-            Vector3 current = transform.position;
-            Vector3 planar = Vector3.SmoothDamp(new Vector3(current.x, 0f, current.z), new Vector3(goal.x, 0f, goal.z), ref _followVelocity, smoothTime, Mathf.Infinity, dt);
-            float y = Mathf.SmoothDamp(current.y, goal.y, ref _followVelocityY, smoothTime * VerticalLag, Mathf.Infinity, dt);
-            transform.position = new Vector3(planar.x, y, planar.z);
-        }
-
         private void OnValidate()
         {
-            // Editor preview: lets you tweak the settings asset / rig in edit mode and see the result.
-            ApplySettings();
+            if (_defaultCamera != null)
+            {
+                ConfigureCamera(_defaultCamera, 0f, Vector3.zero);
+            }
+            else if (_settings != null)
+            {
+                if (_pivot != null)
+                {
+                    _pivot.localRotation = Quaternion.Euler(_settings.Pitch, _settings.Yaw, 0f);
+                }
+
+                if (_camera != null)
+                {
+                    _camera.transform.localPosition = Vector3.back * _settings.Distance;
+                    _camera.fieldOfView = _settings.FieldOfView;
+                }
+            }
         }
 
-        // ============ API ============
-
-        /// <summary>Teleports the rig to the target (plus offset) and clears follow velocity. Use on spawn / respawn / scene load.</summary>
         public void SnapToTarget()
         {
-            if (_target == null)
+            if (_target == null || _camera == null)
             {
                 return;
             }
 
-            transform.position = GetGoalPosition();
-            _followVelocity = Vector3.zero;
-            _followVelocityY = 0f;
+            BeforeSnap?.Invoke();
+            CinemachineCamera activeCamera = null;
+            foreach (var root in gameObject.scene.GetRootGameObjects())
+            {
+                foreach (var virtualCamera in root.GetComponentsInChildren<CinemachineCamera>(true))
+                {
+                    if (virtualCamera.Follow != _target)
+                    {
+                        continue;
+                    }
+
+                    CenterCamera(virtualCamera);
+                    virtualCamera.PreviousStateIsValid = false;
+                    virtualCamera.InternalUpdateCameraState(Vector3.up, -1f);
+                    if (virtualCamera.isActiveAndEnabled && (activeCamera == null || virtualCamera.Priority.Value > activeCamera.Priority.Value))
+                    {
+                        activeCamera = virtualCamera;
+                    }
+                }
+            }
+
+            _camera.GetComponent<CinemachineBrain>()?.ResetState();
+            if (activeCamera != null)
+            {
+                _camera.transform.SetPositionAndRotation(activeCamera.State.GetFinalPosition(), activeCamera.State.GetFinalOrientation());
+            }
         }
 
-        /// <summary>
-        /// Applies <see cref="CameraRigSettings"/> to the hierarchy: pivot rotation (pitch, yaw), camera local position
-        /// (0, 0, -Distance) and field of view. Called from Awake and OnValidate.
-        /// </summary>
-        /// <summary>
-        /// Level framing on top of the settings: pulls the camera back by <paramref name="extraDistance"/>, shifts what it
-        /// looks at by <paramref name="extraOffset"/> and swings it round by <paramref name="extraYaw"/> degrees (a slight
-        /// angle shows the sides of the 3D set). Eases in over about a second. (0, zero, 0) restores the default.
-        /// </summary>
         public void SetFraming(float extraDistance, Vector3 extraOffset, float extraYaw = 0f)
         {
-            _framingDistanceGoal = extraDistance;
-            _framingOffsetGoal = extraOffset;
-            _framingYawGoal = extraYaw;
+            if (extraDistance == 0f && extraOffset == Vector3.zero && extraYaw == 0f)
+            {
+                if (_framingCamera != null)
+                {
+                    _framingCamera.Priority = -1;
+                    _framingCamera.Prioritize();
+                }
+
+                return;
+            }
+
+            if (_framingCamera == null)
+            {
+                _framingCamera = CreateCamera(transform, "Framing Camera", extraDistance, extraOffset, extraYaw);
+            }
+
+            ConfigureCamera(_framingCamera, extraDistance, extraOffset, extraYaw);
+            _framingCamera.Priority = 10;
+            _framingCamera.Prioritize();
         }
 
         [ContextMenu("Apply Settings")]
         public void ApplySettings()
         {
-            if (_settings == null)
+            if (_camera == null)
             {
                 return;
             }
 
-            if (_pivot != null)
+            if (_camera.transform != transform)
             {
-                _pivot.localRotation = Quaternion.Euler(_settings.Pitch, _settings.Yaw + _framingYaw, 0f);
+                _camera.transform.SetParent(transform, true);
             }
 
-            if (_camera != null)
+            var brain = _camera.GetComponent<CinemachineBrain>();
+            if (brain == null)
             {
-                _camera.transform.localPosition = new Vector3(0f, 0f, -(_settings.Distance + _framingDistance));
-                _camera.fieldOfView = _settings.FieldOfView;
+                brain = _camera.gameObject.AddComponent<CinemachineBrain>();
+            }
+
+            brain.IgnoreTimeScale = false;
+            brain.UpdateMethod = CinemachineBrain.UpdateMethods.LateUpdate;
+            brain.BlendUpdateMethod = CinemachineBrain.BrainUpdateMethods.LateUpdate;
+            brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, 0.8f);
+            if (_defaultCamera == null)
+            {
+                _defaultCamera = CreateCamera(transform, "Follow Camera", 0f, Vector3.zero);
+            }
+
+            ConfigureCamera(_defaultCamera, 0f, Vector3.zero);
+            _defaultCamera.Priority = 0;
+            _defaultCamera.Prioritize();
+        }
+
+        public CinemachineCamera CreateCamera(Transform parent, string cameraName, float extraDistance, Vector3 extraOffset, float extraYaw = 0f,
+                                              float pitch = 0f, float fieldOfView = 0f)
+        {
+            var cameraObject = new GameObject(cameraName);
+            cameraObject.transform.SetParent(parent, false);
+            var virtualCamera = cameraObject.AddComponent<CinemachineCamera>();
+            cameraObject.AddComponent<CinemachinePositionComposer>();
+            var listener = cameraObject.AddComponent<CinemachineImpulseListener>();
+            listener.ChannelMask = 1;
+            listener.Gain = 1f;
+            listener.UseCameraSpace = true;
+            listener.ApplyAfter = CinemachineCore.Stage.Noise;
+            listener.SignalCombinationMode = CinemachineImpulseListener.SignalCombinationModes.UseLargest;
+            virtualCamera.StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
+            virtualCamera.Priority = -1;
+            ConfigureCamera(virtualCamera, extraDistance, extraOffset, extraYaw, pitch, fieldOfView);
+            return virtualCamera;
+        }
+
+        /// <param name="pitch">Pitch override in degrees; 0 keeps the settings' pitch.</param>
+        /// <param name="fieldOfView">Vertical field of view override; 0 keeps the settings' value.</param>
+        public void ConfigureCamera(CinemachineCamera virtualCamera, float extraDistance, Vector3 extraOffset, float extraYaw = 0f,
+                                    float pitch = 0f, float fieldOfView = 0f)
+        {
+            if (pitch <= 0f)
+            {
+                pitch = _settings != null ? _settings.Pitch : 25f;
+            }
+
+            if (fieldOfView <= 0f)
+            {
+                fieldOfView = _settings != null ? _settings.FieldOfView : 30f;
+            }
+
+            float yaw = (_settings != null ? _settings.Yaw : 0f) + extraYaw;
+            float distance = Mathf.Max(0.1f, (_settings != null ? _settings.Distance : 11f) + extraDistance);
+            float damping = _settings != null ? _settings.FollowSmoothTime : 0.12f;
+            virtualCamera.Follow = _target;
+            virtualCamera.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+            var lens = _camera != null ? LensSettings.FromCamera(_camera) : LensSettings.Default;
+            lens.FieldOfView = fieldOfView;
+            virtualCamera.Lens = lens;
+
+            var composer = virtualCamera.GetComponent<CinemachinePositionComposer>();
+            composer.CameraDistance = distance;
+            composer.CenterOnActivate = false;
+            composer.DeadZoneDepth = 4.4f * Mathf.Sin(pitch * Mathf.Deg2Rad);
+            composer.TargetOffset = (_settings != null ? _settings.TargetOffset : Vector3.up) + extraOffset;
+            composer.Damping = new Vector3(damping, damping * 3f, damping);
+            float screenHeight = 2f * distance * Mathf.Tan(fieldOfView * Mathf.Deg2Rad * 0.5f);
+            float deadZoneHeight = Mathf.Clamp01(2.8f * Mathf.Cos(pitch * Mathf.Deg2Rad) / screenHeight);
+            composer.Composition = new ScreenComposerSettings
+            {
+                ScreenPosition = new Vector2(0f, deadZoneHeight * (0.6f / 2.8f - 0.5f)),
+                DeadZone = new ScreenComposerSettings.DeadZoneSettings { Enabled = true, Size = new Vector2(0f, deadZoneHeight) },
+                HardLimits = new ScreenComposerSettings.HardLimitSettings { Enabled = true, Size = new Vector2(0.9f, 0.9f) }
+            };
+            if (!virtualCamera.PreviousStateIsValid && _target != null)
+            {
+                CenterCamera(virtualCamera);
             }
         }
 
-        // ============ Helpers ============
-
-        private Vector3 GetGoalPosition()
+        private static void CenterCamera(CinemachineCamera virtualCamera)
         {
-            Vector3 offset = _settings != null ? _settings.TargetOffset : Vector3.zero;
-            return _target.position + offset + _framingOffset;
-        }
-
-        private void UpdateFraming()
-        {
-            if (Mathf.Approximately(_framingDistance, _framingDistanceGoal) && _framingOffset == _framingOffsetGoal
-                && Mathf.Approximately(_framingYaw, _framingYawGoal))
-            {
-                return;
-            }
-
-            // Real time, so framing still settles during hitstop; exponential so it starts quick and lands soft.
-            float t = 1f - Mathf.Exp(-FramingRate * Time.unscaledDeltaTime);
-            _framingDistance = Mathf.Abs(_framingDistance - _framingDistanceGoal) < 0.01f ? _framingDistanceGoal : Mathf.Lerp(_framingDistance, _framingDistanceGoal, t);
-            _framingOffset = (_framingOffset - _framingOffsetGoal).sqrMagnitude < 0.0001f ? _framingOffsetGoal : Vector3.Lerp(_framingOffset, _framingOffsetGoal, t);
-            _framingYaw = Mathf.Abs(_framingYaw - _framingYawGoal) < 0.05f ? _framingYawGoal : Mathf.Lerp(_framingYaw, _framingYawGoal, t);
-            if (_camera != null && _settings != null)
-            {
-                _camera.transform.localPosition = new Vector3(0f, 0f, -(_settings.Distance + _framingDistance));
-            }
-
-            if (_pivot != null && _settings != null)
-            {
-                _pivot.localRotation = Quaternion.Euler(_settings.Pitch, _settings.Yaw + _framingYaw, 0f);
-            }
+            var composer = virtualCamera.GetComponent<CinemachinePositionComposer>();
+            var target = virtualCamera.Follow;
+            Vector3 position = target.position + target.rotation * composer.TargetOffset
+                - virtualCamera.transform.forward * composer.CameraDistance;
+            virtualCamera.ForceCameraPosition(position, virtualCamera.transform.rotation);
         }
     }
 }

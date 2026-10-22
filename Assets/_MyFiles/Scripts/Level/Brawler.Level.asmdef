@@ -1,7 +1,7 @@
 {
     "name": "Brawler.Level",
     "rootNamespace": "Brawler.Level",
-    "references": ["Brawler.Core", "Brawler.Combat", "Brawler.Player", "Brawler.Enemy", "Brawler.Presentation", "UnityEngine.UI"],
+    "references": ["Brawler.Core", "Brawler.Combat", "Brawler.Player", "Brawler.Enemy", "Brawler.Presentation", "UnityEngine.UI", "Unity.Cinemachine"],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

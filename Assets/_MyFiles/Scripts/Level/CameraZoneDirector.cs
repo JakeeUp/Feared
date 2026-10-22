@@ -1,9 +1,11 @@
+using Brawler.Player;
 using Brawler.Presentation;
+using Unity.Cinemachine;
 using UnityEngine;
 
 namespace Brawler.Level
 {
-    /// <summary>Applies the framing of the <see cref="CameraZone"/> the player is in to the <see cref="CameraRig"/>.</summary>
+    [DefaultExecutionOrder(-20)]
     [DisallowMultipleComponent]
     public sealed class CameraZoneDirector : MonoBehaviour
     {
@@ -12,9 +14,49 @@ namespace Brawler.Level
         [SerializeField] private Transform _player;
 
         private CameraZone _current;
+        private PlayerController _controller;
+        private CinemachineCamera _currentCamera;
         private bool _applied;
 
+        private void OnEnable()
+        {
+            if (_rig != null)
+            {
+                _rig.BeforeSnap += Refresh;
+                _controller = _player != null ? _player.GetComponent<PlayerController>() : null;
+                if (_controller != null)
+                {
+                    _controller.Respawned += _rig.SnapToTarget;
+                }
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (_rig != null)
+            {
+                _rig.BeforeSnap -= Refresh;
+                if (_controller != null)
+                {
+                    _controller.Respawned -= _rig.SnapToTarget;
+                }
+            }
+
+            if (_currentCamera != null)
+            {
+                _currentCamera.Priority = -1;
+                _currentCamera.Prioritize();
+            }
+
+            _applied = false;
+        }
+
         private void LateUpdate()
+        {
+            Refresh();
+        }
+
+        private void Refresh()
         {
             if (_rig == null || _player == null)
             {
@@ -27,15 +69,19 @@ namespace Brawler.Level
                 return;
             }
 
+            if (_currentCamera != null)
+            {
+                _currentCamera.Priority = -1;
+                _currentCamera.Prioritize();
+            }
+
             _current = zone;
             _applied = true;
-            if (zone != null)
+            _currentCamera = zone != null ? zone.GetCamera(_rig) : null;
+            if (_currentCamera != null)
             {
-                _rig.SetFraming(zone.ExtraDistance, zone.Offset, zone.Yaw);
-            }
-            else
-            {
-                _rig.SetFraming(0f, Vector3.zero);
+                _currentCamera.Priority = 10;
+                _currentCamera.Prioritize();
             }
         }
     }
