@@ -166,7 +166,7 @@ namespace Brawler.Presentation
         {
             if (_scoreText != null)
             {
-                _scoreText.text = $"SCORE  {(_wallet != null ? _wallet.Balance : 0):N0}";
+                _scoreText.text = $"SCORE  {(_wallet != null ? _wallet.Balance : 0):0}";
             }
         }
     }

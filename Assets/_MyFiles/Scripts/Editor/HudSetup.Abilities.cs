@@ -41,10 +41,10 @@ namespace Brawler.Editor
             AbilityDefinition shield = EnsureAbility(AbilityType.BubbleShield, "Bubble Shield", "Blocks all damage for a few seconds.", 300, 15f, 4f, 0f, log);
             AbilityDefinition mend = EnsureAbility(AbilityType.Mend, "Mend", "Heal 35% of your max health.", 250, 20f, 0f, 0.35f, log);
 
-            var wallet = HeroSetup.GetOrAdd<ScoreWallet>(player.gameObject);
-            var loadout = HeroSetup.GetOrAdd<AbilityLoadout>(player.gameObject);
+            var wallet = EditorUtil.GetOrAdd<ScoreWallet>(player.gameObject);
+            var loadout = EditorUtil.GetOrAdd<AbilityLoadout>(player.gameObject);
             var loadoutSo = new SerializedObject(loadout);
-            HeroSetup.SetArray(loadoutSo.FindProperty("_abilities"), ring, shield, mend);
+            EditorUtil.SetArray(loadoutSo.FindProperty("_abilities"), ring, shield, mend);
             loadoutSo.FindProperty("_wallet").objectReferenceValue = wallet;
             loadoutSo.ApplyModifiedProperties();
 
@@ -60,7 +60,7 @@ namespace Brawler.Editor
 
             // Blade ring hitbox: radial knockback around the player, same team so it never hits the player.
             Transform ringTransform = root.Find("BladeRingHitbox") ?? NewChild(root, "BladeRingHitbox");
-            var ringHitbox = HeroSetup.GetOrAdd<Hitbox>(ringTransform.gameObject);
+            var ringHitbox = EditorUtil.GetOrAdd<Hitbox>(ringTransform.gameObject);
             var ringSo = new SerializedObject(ringHitbox);
             ringSo.FindProperty("_combatSettings").objectReferenceValue = AssetDatabase.LoadAssetAtPath<CombatSettings>(CombatSettingsPath);
             ringSo.FindProperty("_eventBus").objectReferenceValue = eventBus;
@@ -78,7 +78,7 @@ namespace Brawler.Editor
             for (int i = 0; i < BladeCount; i++)
             {
                 Transform blade = bladesRoot.Find($"Blade_{i}") ?? NewChild(bladesRoot, $"Blade_{i}");
-                var sr = HeroSetup.GetOrAdd<SpriteRenderer>(blade.gameObject);
+                var sr = EditorUtil.GetOrAdd<SpriteRenderer>(blade.gameObject);
                 sr.sprite = sword;
                 sr.shadowCastingMode = ShadowCastingMode.Off;
                 sr.receiveShadows = false;
@@ -108,8 +108,9 @@ namespace Brawler.Editor
             bubbleRenderer.sharedMaterial = EnsureTransparentMaterial(BubbleMaterialPath, BubbleColor);
             bubbleRenderer.shadowCastingMode = ShadowCastingMode.Off;
             bubbleRenderer.receiveShadows = false;
+            bubble.gameObject.SetActive(false); // AbilityCaster shows it only while the shield is up
 
-            var caster = HeroSetup.GetOrAdd<AbilityCaster>(player.gameObject);
+            var caster = EditorUtil.GetOrAdd<AbilityCaster>(player.gameObject);
             var so = new SerializedObject(caster);
             so.FindProperty("_player").objectReferenceValue = player;
             so.FindProperty("_loadout").objectReferenceValue = loadout;
@@ -121,7 +122,7 @@ namespace Brawler.Editor
             so.FindProperty("_mendAction").objectReferenceValue = HeroSetup.FindAction("Mend");
             so.FindProperty("_ringHitbox").objectReferenceValue = ringHitbox;
             so.FindProperty("_ringAttack").objectReferenceValue = EnsureRingAttack(log);
-            HeroSetup.SetArray(so.FindProperty("_blades"), blades);
+            EditorUtil.SetArray(so.FindProperty("_blades"), blades);
             so.FindProperty("_bubble").objectReferenceValue = bubble;
             so.ApplyModifiedProperties();
 
@@ -167,11 +168,12 @@ namespace Brawler.Editor
                 cooldown.fillClockwise = false;
                 cooldown.fillAmount = 0f;
 
-                Label(Rect("Key", frame, new Vector2(1f, 0f), new Vector2(-4f, 2f), new Vector2(30f, 26f)), font, 20, AccentColor, TextAnchor.LowerRight, slots[i].Key);
+                Text hint = Label(Rect("Key", frame, new Vector2(1f, 0f), new Vector2(-4f, 2f), new Vector2(30f, 26f)), font, 20, AccentColor, TextAnchor.LowerRight, slots[i].Key);
 
                 SerializedProperty slot = slotsProperty.GetArrayElementAtIndex(i);
                 slot.FindPropertyRelative("Type").enumValueIndex = (int)slots[i].Type;
                 slot.FindPropertyRelative("Icon").objectReferenceValue = icon;
+                slot.FindPropertyRelative("Hint").objectReferenceValue = hint;
                 slot.FindPropertyRelative("Cooldown").objectReferenceValue = cooldown;
                 slot.FindPropertyRelative("Frame").objectReferenceValue = frameImage;
             }

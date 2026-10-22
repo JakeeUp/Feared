@@ -21,6 +21,7 @@ namespace Brawler.Presentation
         {
             public AbilityType Type;
             public Image Icon;
+            public Text Hint;
 
             [Tooltip("Radial Filled image over the icon; its fill is the remaining cooldown.")]
             public Image Cooldown;
@@ -39,6 +40,17 @@ namespace Brawler.Presentation
         [SerializeField] private Color _activeFrameColor = new Color(1f, 0.85f, 0.35f, 1f);
 
         // ============ Lifecycle ============
+
+        private void OnEnable()
+        {
+            ControlHints.Changed += RefreshHints;
+            RefreshHints();
+        }
+
+        private void OnDisable()
+        {
+            ControlHints.Changed -= RefreshHints;
+        }
 
         private void LateUpdate()
         {
@@ -64,6 +76,37 @@ namespace Brawler.Presentation
                 if (slot.Frame != null)
                 {
                     slot.Frame.color = _loadout.IsActive(slot.Type, now) ? _activeFrameColor : _frameColor;
+                }
+            }
+        }
+
+        private void RefreshHints()
+        {
+            foreach (Slot slot in _slots)
+            {
+                Text hint = slot.Hint;
+                if (hint == null)
+                {
+                    Transform frame = transform.Find(slot.Type.ToString());
+                    hint = frame != null ? frame.Find("Key")?.GetComponent<Text>() : null;
+                }
+
+                if (hint == null)
+                {
+                    continue;
+                }
+
+                string token = slot.Type switch
+                {
+                    AbilityType.BladeRing => "{BladeRing}",
+                    AbilityType.BubbleShield => "{BubbleShield}",
+                    AbilityType.Mend => "{Mend}",
+                    _ => string.Empty
+                };
+                string display = ControlHints.Format(token);
+                if (!string.IsNullOrEmpty(display) && display != token)
+                {
+                    hint.text = display;
                 }
             }
         }

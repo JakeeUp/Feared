@@ -63,6 +63,7 @@ namespace Brawler.Editor
 
             var component = hud.gameObject.AddComponent<PlayerHud>();
             var so = new SerializedObject(component);
+            so.FindProperty("_actions").objectReferenceValue = HeroSetup.FindAction("Menu")?.action.actionMap.asset;
             so.FindProperty("_health").objectReferenceValue = health;
             so.FindProperty("_progression").objectReferenceValue = progression;
             so.FindProperty("_healthFill").objectReferenceValue = fill;

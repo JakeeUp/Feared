@@ -85,20 +85,21 @@ namespace Brawler.Progression
             }
         }
 
-        // ============ Helpers ============
+        // ============ API ============
 
-        private void OnDefeated(EnemyDefeatedEvent evt)
+        /// <summary>Bursts <paramref name="xp"/> worth of orbs out of <paramref name="position"/> (enemy deaths, opened chests).</summary>
+        public void Burst(Vector3 position, int xp)
         {
-            if (_settings == null || evt.Xp <= 0)
+            if (_settings == null || xp <= 0)
             {
                 return;
             }
 
             // Split the XP into orbs; any remainder rides on the first orb.
-            int count = Mathf.Clamp(evt.Xp / _settings.XpPerOrb, 1, _settings.MaxOrbsPerDrop);
-            int each = evt.Xp / count;
-            int remainder = evt.Xp - each * count;
-            Vector3 origin = evt.Position + Vector3.up * 0.5f;
+            int count = Mathf.Clamp(xp / _settings.XpPerOrb, 1, _settings.MaxOrbsPerDrop);
+            int each = xp / count;
+            int remainder = xp - each * count;
+            Vector3 origin = position + Vector3.up * 0.5f;
 
             for (int i = 0; i < count; i++)
             {
@@ -114,6 +115,13 @@ namespace Brawler.Progression
                 var burst = new Vector3(Mathf.Cos(angle), 1.4f, Mathf.Sin(angle) * 0.6f) * _settings.OrbPopSpeed;
                 orb.Launch(origin, burst, each + (i == 0 ? remainder : 0), _target, _collector, _settings);
             }
+        }
+
+        // ============ Helpers ============
+
+        private void OnDefeated(EnemyDefeatedEvent evt)
+        {
+            Burst(evt.Position, evt.Xp);
         }
     }
 }

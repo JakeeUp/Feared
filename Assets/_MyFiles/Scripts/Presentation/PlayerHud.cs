@@ -1,6 +1,7 @@
 using Brawler.Combat;
 using Brawler.Progression;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace Brawler.Presentation
@@ -19,6 +20,7 @@ namespace Brawler.Presentation
         [Header("Sources")]
         [SerializeField] private Health _health;
         [SerializeField] private PlayerProgression _progression;
+        [SerializeField] private InputActionAsset _actions;
 
         [Header("Health")]
         [Tooltip("Filled image showing current health.")]
@@ -55,8 +57,22 @@ namespace Brawler.Presentation
         private int _shownPoints = -1;
         private int _shownCurrent = -1;
         private int _shownMax = -1;
+        private string _shownMenuHint;
 
         // ============ Lifecycle ============
+
+        private void OnEnable()
+        {
+            ControlHints.Register(_actions);
+            ControlHints.Changed += RefreshPointsPrompt;
+            RefreshPointsPrompt();
+        }
+
+        private void OnDisable()
+        {
+            ControlHints.Changed -= RefreshPointsPrompt;
+            ControlHints.Unregister(_actions);
+        }
 
         private void LateUpdate()
         {
@@ -136,10 +152,33 @@ namespace Brawler.Presentation
 
             if (_pointsText != null && _progression.Points != _shownPoints)
             {
-                _shownPoints = _progression.Points;
-                _pointsText.enabled = _shownPoints > 0;
-                _pointsText.text = $"+{_shownPoints} UPGRADE POINT{(_shownPoints == 1 ? "" : "S")}   [{_menuHint}]";
+                RefreshPointsPrompt();
             }
+        }
+
+        private void RefreshPointsPrompt()
+        {
+            if (_pointsText == null || _progression == null)
+            {
+                return;
+            }
+
+            int points = _progression.Points;
+            string hint = ControlHints.Format("{Menu}");
+            if (hint == "{Menu}")
+            {
+                hint = _menuHint;
+            }
+
+            if (points == _shownPoints && hint == _shownMenuHint)
+            {
+                return;
+            }
+
+            _shownPoints = points;
+            _shownMenuHint = hint;
+            _pointsText.enabled = points > 0;
+            _pointsText.text = $"+{points} UPGRADE POINT{(points == 1 ? "" : "S")}   [{hint}]";
         }
     }
 }
