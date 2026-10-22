@@ -39,10 +39,32 @@ namespace Brawler.Presentation
         [Tooltip("Fraction of the camera pitch (and any shake roll) to follow when Match Camera Pitch is on. 1 = parallel to the view plane (no foreshortening, but at 32 deg the top of a 1-unit sprite leans ~0.53 back into walls/platforms behind it). 0.5 = halves the lean (~0.28) for only ~4% vertical foreshortening. The sprite shader's _DepthBias covers the rest.")]
         [SerializeField, Range(0f, 1f)] private float _pitchFollow = 0.5f;
 
+        [Header("Depth Turn")]
+        [Tooltip("Yaw the sprite into or out of the screen while its parent moves in depth (toward/away from the camera), so walking up or down the lane reads as turning instead of sliding sideways.")]
+        [SerializeField] private bool _depthTurn = true;
+
+        [Tooltip("Yaw (degrees) at full depth speed. Past ~45 the flat sprite gets too thin.")]
+        [SerializeField, Range(0f, 60f)] private float _maxTurnAngle = 35f;
+
+        [Tooltip("Depth speed (units/s) that gives the full turn angle.")]
+        [SerializeField, Min(0.1f)] private float _fullTurnSpeed = 3f;
+
+        [Tooltip("How fast the turn eases toward its goal (1/s, exponential).")]
+        [SerializeField, Min(0.1f)] private float _turnRate = 12f;
+
+        // ============ Constants ============
+
+        /// <summary>Faster than this (units/s) is a teleport or respawn, not walking: ignored.</summary>
+        private const float TeleportSpeed = 40f;
+
         // ============ State ============
 
         /// <summary>Cached cast of <see cref="_facingSource"/>; null when not wired or invalid.</summary>
         private IFacingSource _facing;
+
+        private Vector3 _lastRootPosition;
+        private bool _hasLastRootPosition;
+        private float _turn;
 
         // ============ Properties ============
 
@@ -85,9 +107,10 @@ namespace Brawler.Presentation
                 if (forward.sqrMagnitude > 1e-6f)
                 {
                     Quaternion yawOnly = Quaternion.LookRotation(forward, Vector3.up);
-                    transform.rotation = _matchCameraPitch
+                    Quaternion billboard = _matchCameraPitch
                         ? Quaternion.Slerp(yawOnly, cameraRotation, _pitchFollow)
                         : yawOnly;
+                    transform.rotation = Quaternion.AngleAxis(UpdateDepthTurn(forward.normalized), Vector3.up) * billboard;
                 }
                 else
                 {
@@ -105,6 +128,45 @@ namespace Brawler.Presentation
                     _spriteRenderer.flipX = flip;
                 }
             }
+        }
+
+        // ============ Helpers ============
+
+        /// <summary>
+        /// Eases the depth-turn yaw (degrees about world up) from the parent's motion along the flat camera forward.
+        /// The sprite's front edge (the way it faces) swings away from the camera when moving into the screen and
+        /// toward it when moving out. Holds still while time is stopped (hitstop).
+        /// </summary>
+        private float UpdateDepthTurn(Vector3 flatForward)
+        {
+            Transform root = transform.parent != null ? transform.parent : transform;
+            Vector3 position = root.position;
+            float dt = Time.deltaTime;
+            if (!_depthTurn || dt <= 0f)
+            {
+                _lastRootPosition = position;
+                _hasLastRootPosition = true;
+                return _depthTurn ? _turn : 0f;
+            }
+
+            float goal = 0f;
+            if (_hasLastRootPosition)
+            {
+                Vector3 velocity = (position - _lastRootPosition) / dt;
+                if (velocity.sqrMagnitude < TeleportSpeed * TeleportSpeed)
+                {
+                    float depth = Vector3.Dot(velocity, flatForward);
+                    int facing = _facing != null ? (_facing.FacingSign < 0 ? -1 : 1) : (_spriteRenderer != null && _spriteRenderer.flipX ? -1 : 1);
+                    // Unity yaw: +angle turns +right toward -forward, so the front (facing * right) swings into
+                    // the screen for a negative angle when facing right.
+                    goal = -facing * Mathf.Clamp(depth / _fullTurnSpeed, -1f, 1f) * _maxTurnAngle;
+                }
+            }
+
+            _lastRootPosition = position;
+            _hasLastRootPosition = true;
+            _turn = Mathf.Lerp(_turn, goal, 1f - Mathf.Exp(-_turnRate * dt));
+            return _turn;
         }
 
         // ============ Validation ============

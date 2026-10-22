@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Brawler.Combat
@@ -27,6 +28,20 @@ namespace Brawler.Combat
 
         [Tooltip("Team of the owner. Hitboxes skip hurtboxes on their own team (Neutral is hit by everyone).")]
         [SerializeField] private CombatTeam _team = CombatTeam.Neutral;
+
+        // ============ Registry ============
+
+        private static readonly List<Hurtbox> EnemyList = new List<Hurtbox>(32);
+
+        /// <summary>Enabled hurtboxes on the Enemy team (enemies and bosses), for HUD indicators.</summary>
+        public static IReadOnlyList<Hurtbox> Enemies => EnemyList;
+
+        /// <summary>Domain reload is off: drop hurtboxes left over from the previous play session.</summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            EnemyList.Clear();
+        }
 
         // ============ Cached ============
 
@@ -72,6 +87,19 @@ namespace Brawler.Combat
             {
                 Debug.LogWarning($"{nameof(Hurtbox)} on '{name}': owner is missing or does not implement {nameof(IDamageable)}; hits will be ignored.", this);
             }
+        }
+
+        private void OnEnable()
+        {
+            if (_team == CombatTeam.Enemy && !EnemyList.Contains(this))
+            {
+                EnemyList.Add(this);
+            }
+        }
+
+        private void OnDisable()
+        {
+            EnemyList.Remove(this);
         }
 
         // ============ Validation ============

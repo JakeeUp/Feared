@@ -77,6 +77,8 @@ namespace Brawler.Editor
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             UiSkin skin = PackSetup.EnsureUiSkin(log);
             BuildCanvas(player, health, progression, loadout, eventBus, white, font, skin, log);
+            CameraRig rig = Object.FindAnyObjectByType<CameraRig>();
+            ReadabilitySetup.SetupIndicators(player, rig != null ? rig.Camera : null, log); // the canvas was rebuilt
 
             EditorSceneManager.MarkSceneDirty(player.gameObject.scene);
             AssetDatabase.SaveAssets();
@@ -87,7 +89,7 @@ namespace Brawler.Editor
 
         private static PlayerProgression WireProgression(PlayerController player, Health health, ProgressionSettings settings, StringBuilder log)
         {
-            var progression = HeroSetup.GetOrAdd<PlayerProgression>(player.gameObject);
+            var progression = EditorUtil.GetOrAdd<PlayerProgression>(player.gameObject);
             var so = new SerializedObject(progression);
             so.FindProperty("_settings").objectReferenceValue = settings;
             so.FindProperty("_health").objectReferenceValue = health;
@@ -100,8 +102,8 @@ namespace Brawler.Editor
         private static void BuildOrbSpawner(PlayerController player, PlayerProgression progression, ProgressionSettings settings, EventBusAsset eventBus, StringBuilder log)
         {
             Material material = EnemySetup.EnsureUnlitMaterial(OrbMaterialPath, OrbColor);
-            GameObject go = GameObject.Find("XpOrbs") ?? HeroSetup.CreateRoot("XpOrbs");
-            var spawner = HeroSetup.GetOrAdd<XpOrbSpawner>(go);
+            GameObject go = GameObject.Find("XpOrbs") ?? EditorUtil.CreateRoot("XpOrbs");
+            var spawner = EditorUtil.GetOrAdd<XpOrbSpawner>(go);
             var so = new SerializedObject(spawner);
             so.FindProperty("_eventBus").objectReferenceValue = eventBus;
             so.FindProperty("_settings").objectReferenceValue = settings;
@@ -179,6 +181,7 @@ namespace Brawler.Editor
 
             var component = hud.gameObject.AddComponent<PlayerHud>();
             var so = new SerializedObject(component);
+            so.FindProperty("_actions").objectReferenceValue = HeroSetup.FindAction("Menu")?.action.actionMap.asset;
             so.FindProperty("_health").objectReferenceValue = health;
             so.FindProperty("_progression").objectReferenceValue = progression;
             so.FindProperty("_healthFill").objectReferenceValue = fill;
@@ -195,7 +198,7 @@ namespace Brawler.Editor
             // Full-screen container: the score sits top-right, the hit streak middle-right so they never overlap.
             RectTransform root = Rect("ComboCounter", canvas, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             Stretch(root);
-            Text score = Label(Rect("Score", root, new Vector2(1f, 1f), new Vector2(-36f, -28f), new Vector2(460f, 40f)), font, 30, Color.white, TextAnchor.MiddleRight, "SCORE  0");
+            Text score = Label(Rect("Score", root, new Vector2(1f, 1f), new Vector2(-36f, -28f), new Vector2(460f, 40f)), PixelFont.Get(30) ?? font, 30, Color.white, TextAnchor.MiddleRight, "SCORE  0");
 
             RectTransform streak = Rect("Streak", root, new Vector2(1f, 0.5f), new Vector2(-36f, 80f), new Vector2(460f, 100f));
             var group = streak.gameObject.AddComponent<CanvasGroup>();
@@ -203,8 +206,9 @@ namespace Brawler.Editor
             group.blocksRaycasts = false;
             RectTransform hitsRect = Rect("Hits", streak, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(460f, 100f));
             hitsRect.pivot = new Vector2(1f, 0.5f); // punch scales from the right edge
-            Text hits = Label(hitsRect, font, 72, AccentColor, TextAnchor.MiddleRight, "0 HITS");
-            hits.fontStyle = FontStyle.Bold;
+            Font hitsFont = PixelFont.Get(72);
+            Text hits = Label(hitsRect, hitsFont ?? font, 72, AccentColor, TextAnchor.MiddleRight, "0 HITS");
+            hits.fontStyle = hitsFont != null ? FontStyle.Normal : FontStyle.Bold;
 
             var component = root.gameObject.AddComponent<ComboCounter>();
             var so = new SerializedObject(component);
@@ -258,7 +262,7 @@ namespace Brawler.Editor
             var so = new SerializedObject(component);
             so.FindProperty("_progression").objectReferenceValue = progression;
             so.FindProperty("_toggleAction").objectReferenceValue = HeroSetup.FindAction("Menu");
-            HeroSetup.SetArray(so.FindProperty("_disableWhileOpen"), player.GetComponent<PlayerInputReader>());
+            EditorUtil.SetArray(so.FindProperty("_disableWhileOpen"), player.GetComponent<PlayerInputReader>());
             so.FindProperty("_panel").objectReferenceValue = panel.gameObject;
             so.FindProperty("_pointsText").objectReferenceValue = points;
             so.FindProperty("_vitalityButton").objectReferenceValue = vitality;

@@ -77,7 +77,7 @@ namespace Brawler.Level
         {
             _onDespawned = OnEnemyDespawned;
             _onPlayerRespawned = ResetEncounter;
-            SetGates(false);
+            SetGates(false, instant: true);
         }
 
         private void OnDestroy()
@@ -210,14 +210,11 @@ namespace Brawler.Level
 
         // ============ Helpers ============
 
-        private void SetGates(bool closed)
+        private void SetGates(bool closed, bool instant = false)
         {
             foreach (GameObject gate in _gates)
             {
-                if (gate != null)
-                {
-                    gate.SetActive(closed);
-                }
+                SealBarrier.Set(gate, closed, instant);
             }
         }
 

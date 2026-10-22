@@ -56,8 +56,8 @@ namespace Brawler.Level
         {
             _onPlayerRespawned = OnPlayerRespawned;
             _onDefeated = OnBossDefeated;
-            SetActive(_gates, false);
-            SetActive(_exitBlockers, true);
+            SetActive(_gates, false, instant: true);
+            SetActive(_exitBlockers, true, instant: true);
 
             if (_boss != null)
             {
@@ -153,14 +153,11 @@ namespace Brawler.Level
 
         // ============ Helpers ============
 
-        private static void SetActive(GameObject[] objects, bool active)
+        private static void SetActive(GameObject[] objects, bool active, bool instant = false)
         {
             foreach (GameObject go in objects)
             {
-                if (go != null)
-                {
-                    go.SetActive(active);
-                }
+                SealBarrier.Set(go, active, instant);
             }
         }
 
