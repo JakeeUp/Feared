@@ -15,6 +15,9 @@ namespace Brawler.Player
         /// <summary>Downward velocity held while grounded so CharacterController.isGrounded stays stable.</summary>
         private const float GroundStickVelocity = -2f;
 
+        /// <summary>How far below the feet ground can be and still be snapped to when walking down stairs.</summary>
+        private const float GroundSnapDistance = 0.45f;
+
         /// <summary>Deadzone used when no movement settings are assigned.</summary>
         private const float DefaultDeadzone = 0.15f;
 
@@ -154,6 +157,12 @@ namespace Brawler.Player
         /// <summary>Directional attack picked by <see cref="TryStartAttack"/> (null = the combo), read by AttackState.Enter.</summary>
         public AttackData PendingDirectionalAttack { get; set; }
 
+        /// <summary>Time (same clock as <see cref="Time"/>) before which a fresh attack can't start. Set by AttackState.Exit.</summary>
+        public float NextAttackTime { get; set; }
+
+        /// <summary>Time before which the chain can't be thrown again.</summary>
+        public float NextChainTime { get; set; }
+
         /// <summary>The chain while it's flying (throwing it is not a state).</summary>
         public Chain Chain { get; } = new Chain();
 
@@ -217,7 +226,8 @@ namespace Brawler.Player
                 return;
             }
 
-            if (Controller.isGrounded && _verticalVelocity <= 0f)
+            bool wasGrounded = Controller.isGrounded;
+            if (wasGrounded && _verticalVelocity <= 0f)
             {
                 _verticalVelocity = GroundStickVelocity;
             }
@@ -250,6 +260,10 @@ namespace Brawler.Player
             }
 
             Controller.Move(new Vector3(planarVelocity.x, _verticalVelocity, planarVelocity.z) * deltaTime);
+            if (wasGrounded && !Controller.isGrounded && _verticalVelocity <= 0f)
+            {
+                SnapToGround();
+            }
 
             if (Controller.isGrounded)
             {
@@ -262,6 +276,24 @@ namespace Brawler.Player
             else
             {
                 _timeSinceGrounded += deltaTime;
+            }
+        }
+
+        /// <summary>
+        /// Walking down stairs or a slope outruns the ground-stick velocity, so the controller would leave the ground
+        /// on every step. If there is floor just under the feet, move down onto it; past a real ledge, do nothing.
+        /// </summary>
+        private void SnapToGround()
+        {
+            Transform t = Controller.transform;
+            float radius = Controller.radius * 0.9f;
+            Vector3 center = t.TransformPoint(Controller.center);
+            float toFeet = Controller.height * 0.5f - radius;
+            if (Physics.SphereCast(center, radius, Vector3.down, out RaycastHit hit, toFeet + GroundSnapDistance,
+                    Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)
+                && hit.collider.transform != t && Vector3.Angle(hit.normal, Vector3.up) <= Controller.slopeLimit)
+            {
+                Controller.Move(Vector3.down * (hit.distance - toFeet + Controller.skinWidth));
             }
         }
 
@@ -303,7 +335,7 @@ namespace Brawler.Player
         /// <returns>True if the chain was thrown.</returns>
         public bool TryFireChain()
         {
-            if (Chain.IsFlying || !Buffer.Peek(BufferedCommand.Grapple, Time))
+            if (Chain.IsFlying || Time < NextChainTime || !Buffer.Peek(BufferedCommand.Grapple, Time))
             {
                 return false;
             }
@@ -314,6 +346,7 @@ namespace Brawler.Player
             }
 
             Buffer.TryConsume(BufferedCommand.Grapple, Time);
+            NextChainTime = Time + Movement.ChainCooldown;
             Chain.Fire(RopeOrigin, anchor, enemy);
             return true;
         }
@@ -522,6 +555,12 @@ namespace Brawler.Player
         /// <returns>True if the attack started.</returns>
         public bool TryStartAttack()
         {
+            // Too soon after the last swing: the press stays buffered and fires when the recovery ends.
+            if (Time < NextAttackTime)
+            {
+                return false;
+            }
+
             // Directional slashes first: up = overhead (anti-air), down in the air = pogo slash.
             AttackData directional = PickDirectionalAttack();
             if (directional != null && Buffer.TryConsume(BufferedCommand.Attack, Time))

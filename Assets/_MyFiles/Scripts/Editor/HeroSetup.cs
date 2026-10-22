@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using Brawler.Combat;
 using Brawler.Core;
 using Brawler.Player;
@@ -41,7 +40,6 @@ namespace Brawler.Editor
         private const string SlashFramesDir = ThirdParty + "/SlashFX_Frames";
 
         private const string Root = "Assets/_MyFiles";
-        private const string ClipRoot = Root + "/Data/Animation";
         private const string EventBusPath = Root + "/Data/Core/EventBus.asset";
         private const string InputActionsPath = Root + "/Data/Input/BrawlerControls.inputactions";
         private const string SpriteMaterialPath = Root + "/Art/Materials/M_SpriteAlphaClip.mat";
@@ -63,7 +61,7 @@ namespace Brawler.Editor
         internal const float CharacterHeight = 1f;
 
         /// <summary>Camera distance that keeps a <see cref="CharacterHeight"/>-tall character readable.</summary>
-        private const float CameraDistance = 11f;
+        private const float CameraDistance = LookSetup.CameraDistance;
 
         internal const float CapsuleRadius = 0.22f;
         internal static readonly Vector3 HurtboxSize = new Vector3(0.45f, 0.95f, 0.5f);
@@ -306,8 +304,8 @@ namespace Brawler.Editor
                 }
 
                 var importer = (TextureImporter)AssetImporter.GetAtPath(path);
-                LoadPixels(path, out _, out int h);
-                ApplySprite(importer, new Vector2(0.5f, 0f), h / layer.Height, FilterMode.Point);
+                SpriteImport.LoadPixels(path, out _, out int h);
+                SpriteImport.ApplySprite(importer, new Vector2(0.5f, 0f), h / layer.Height, FilterMode.Point);
             }
 
             log.AppendLine("  * environment layers imported");
@@ -327,7 +325,7 @@ namespace Brawler.Editor
                     continue;
                 }
 
-                Color32[] all = LoadPixels(sheet, out int sheetW, out int sheetH);
+                Color32[] all = SpriteImport.LoadPixels(sheet, out int sheetW, out int sheetH);
                 int cellH = Mathf.Min(SlashCell, sheetH);
                 var comboFrames = new List<string>();
                 RectInt union = default;
@@ -361,7 +359,7 @@ namespace Brawler.Editor
                 float ppu = union.width / SparkWidth;
                 foreach (string path in comboFrames)
                 {
-                    ApplySprite((TextureImporter)AssetImporter.GetAtPath(path), pivot, ppu, FilterMode.Bilinear);
+                    SpriteImport.ApplySprite((TextureImporter)AssetImporter.GetAtPath(path), pivot, ppu, FilterMode.Bilinear);
                 }
 
                 result.AddRange(comboFrames);
@@ -376,7 +374,7 @@ namespace Brawler.Editor
         /// <summary>Builds (or refreshes) every character clip for a colour variant as Clip_[prefix]_[Name] assets.</summary>
         internal static Dictionary<string, SpriteClip> BuildCharacterClips(string root, string prefix, StringBuilder log)
         {
-            Directory.CreateDirectory(ClipDirFor(prefix));
+            Directory.CreateDirectory(SpriteImport.ClipDir(prefix));
             var clips = new Dictionary<string, SpriteClip>();
 
             foreach (ClipSpec spec in Clips)
@@ -387,16 +385,16 @@ namespace Brawler.Editor
                     paths = paths.Take(spec.Count);
                 }
 
-                Sprite[] frames = paths.Select(LoadSprite).Where(s => s != null).ToArray();
-                clips[spec.Name] = SaveClip(prefix, spec.Name, frames, spec.Fps, spec.Loop, spec.Mirrored);
+                Sprite[] frames = paths.Select(SpriteImport.LoadSprite).Where(s => s != null).ToArray();
+                clips[spec.Name] = SpriteImport.SaveClip(prefix, spec.Name, frames, spec.Fps, spec.Loop, spec.Mirrored);
             }
 
             // Idle: hold the still frame, then blink (~every 3 s at 8 fps).
-            Sprite idle = LoadSprite($"{root}/{ReferenceFrameName}");
-            var idleFrames = Enumerable.Repeat(idle, 24).Concat(FramePaths(root, "idle_blink").Select(LoadSprite)).Where(s => s != null).ToArray();
-            clips["Idle"] = SaveClip(prefix, "Idle", idleFrames, 8f, true, false);
+            Sprite idle = SpriteImport.LoadSprite($"{root}/{ReferenceFrameName}");
+            var idleFrames = Enumerable.Repeat(idle, 24).Concat(FramePaths(root, "idle_blink").Select(SpriteImport.LoadSprite)).Where(s => s != null).ToArray();
+            clips["Idle"] = SpriteImport.SaveClip(prefix, "Idle", idleFrames, 8f, true, false);
 
-            log.AppendLine($"  * {clips.Count} clips in {ClipDirFor(prefix)}");
+            log.AppendLine($"  * {clips.Count} clips in {SpriteImport.ClipDir(prefix)}");
             return clips;
         }
 
@@ -406,31 +404,11 @@ namespace Brawler.Editor
             {
                 string prefix = $"{SlashFramesDir}/Slash{combo}_";
                 Sprite[] frames = sparkFrames.Where(p => p.StartsWith(prefix))
-                    .OrderBy(FrameNumber).Select(LoadSprite).Where(s => s != null).ToArray();
-                clips[$"Spark{combo}"] = SaveClip("Hero", $"Spark{combo}", frames, 24f, false, false);
+                    .OrderBy(SpriteImport.FrameNumber).Select(SpriteImport.LoadSprite).Where(s => s != null).ToArray();
+                clips[$"Spark{combo}"] = SpriteImport.SaveClip("Hero", $"Spark{combo}", frames, 24f, false, false);
             }
 
             log.AppendLine("  * hit spark clips built");
-        }
-
-        private static string ClipDirFor(string prefix)
-        {
-            return $"{ClipRoot}/{prefix}";
-        }
-
-        private static SpriteClip SaveClip(string prefix, string name, Sprite[] frames, float fps, bool loop, bool mirrored)
-        {
-            string path = $"{ClipDirFor(prefix)}/Clip_{prefix}_{name}.asset";
-            var clip = AssetDatabase.LoadAssetAtPath<SpriteClip>(path);
-            if (clip == null)
-            {
-                clip = ScriptableObject.CreateInstance<SpriteClip>();
-                AssetDatabase.CreateAsset(clip, path);
-            }
-
-            clip.EditorSet(frames, fps, loop, mirrored);
-            EditorUtility.SetDirty(clip);
-            return clip;
         }
 
         // ============ Tuning ============
@@ -520,7 +498,7 @@ namespace Brawler.Editor
                 return false;
             }
 
-            Color32[] pixels = LoadPixels(frames[SwingFrame], out int w, out int h);
+            Color32[] pixels = SpriteImport.LoadPixels(frames[SwingFrame], out int w, out int h);
             int minX = int.MaxValue, maxX = -1, minY = int.MaxValue, maxY = -1;
             for (int y = 0; y < h; y++)
             {
@@ -733,8 +711,8 @@ namespace Brawler.Editor
             if (driver != null)
             {
                 var d = new SerializedObject(driver);
-                d.FindProperty("_upAttack").objectReferenceValue = AssetDatabase.LoadAssetAtPath<SpriteClip>($"{ClipDirFor("Hero")}/Clip_Hero_Attack2.asset");
-                d.FindProperty("_downAttack").objectReferenceValue = AssetDatabase.LoadAssetAtPath<SpriteClip>($"{ClipDirFor("Hero")}/Clip_Hero_Attack3.asset");
+                d.FindProperty("_upAttack").objectReferenceValue = AssetDatabase.LoadAssetAtPath<SpriteClip>($"{SpriteImport.ClipDir("Hero")}/Clip_Hero_Attack2.asset");
+                d.FindProperty("_downAttack").objectReferenceValue = AssetDatabase.LoadAssetAtPath<SpriteClip>($"{SpriteImport.ClipDir("Hero")}/Clip_Hero_Attack3.asset");
                 d.ApplyModifiedProperties();
             }
 
@@ -744,31 +722,18 @@ namespace Brawler.Editor
         private static AttackData EnsureDirectionalAttack(string path, int damage, Vector2 knockback, int startup, int active, int recovery,
                                                           Vector2 hitboxSize, Vector2 hitboxOffset)
         {
-            var attack = AssetDatabase.LoadAssetAtPath<AttackData>(path);
-            if (attack != null)
+            return AttackAssets.Ensure(path, new AttackAssets.Spec
             {
-                return attack;
-            }
-
-            attack = ScriptableObject.CreateInstance<AttackData>();
-            AssetDatabase.CreateAsset(attack, path);
-            var so = new SerializedObject(attack);
-            so.FindProperty("_damage").intValue = damage;
-            so.FindProperty("_knockback").vector2Value = knockback;
-            so.FindProperty("_hitstunFrames").intValue = 16;
-            SerializedProperty frames = so.FindProperty("_frames");
-            frames.FindPropertyRelative("_startup").intValue = startup;
-            frames.FindPropertyRelative("_active").intValue = active;
-            frames.FindPropertyRelative("_recovery").intValue = recovery;
-            frames.FindPropertyRelative("_cancelWindowStart").intValue = startup + active;
-            frames.FindPropertyRelative("_cancelWindowEnd").intValue = startup + active + recovery;
-            so.FindProperty("_lungeSpeed").floatValue = 0f;
-            so.FindProperty("_hitboxSize").vector2Value = hitboxSize;
-            so.FindProperty("_hitboxOffset").vector2Value = hitboxOffset;
-            so.FindProperty("_hitStopFrames").intValue = 4;
-            so.FindProperty("_screenShake").floatValue = 0.15f;
-            so.ApplyModifiedProperties();
-            return attack;
+                Damage = damage,
+                Knockback = knockback,
+                Startup = startup,
+                Active = active,
+                Recovery = recovery,
+                CancelStart = startup + active,
+                CancelEnd = startup + active + recovery,
+                HitboxSize = hitboxSize,
+                HitboxOffset = hitboxOffset,
+            });
         }
 
         /// <summary>Rope line + target highlighting for the grapple (child "GrappleRope").</summary>
@@ -950,7 +915,7 @@ namespace Brawler.Editor
             int feet = int.MaxValue;
             foreach (string path in frames)
             {
-                Color32[] pixels = LoadPixels(path, out int w, out int h);
+                Color32[] pixels = SpriteImport.LoadPixels(path, out int w, out int h);
                 float sum = 0f;
                 int n = 0;
                 for (int y = 0; y < h; y++)
@@ -987,41 +952,15 @@ namespace Brawler.Editor
         /// <summary>Height in pixels of the solid art in a frame.</summary>
         private static int ArtHeight(string path)
         {
-            Color32[] pixels = LoadPixels(path, out int w, out int h);
+            Color32[] pixels = SpriteImport.LoadPixels(path, out int w, out int h);
             return TryGetBounds(pixels, w, h, out RectInt b) ? b.height : h;
         }
 
         // ============ Helpers ============
 
-        private static Color32[] LoadPixels(string path, out int width, out int height)
-        {
-            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            tex.LoadImage(File.ReadAllBytes(path));
-            Color32[] pixels = tex.GetPixels32();
-            width = tex.width;
-            height = tex.height;
-            Object.DestroyImmediate(tex);
-            return pixels;
-        }
-
         private static List<string> FramePaths(string root, string folder)
         {
-            string dir = $"{root}/{folder}";
-            if (!Directory.Exists(dir))
-            {
-                return new List<string>();
-            }
-
-            return Directory.GetFiles(dir, "*.png")
-                .Select(p => p.Replace('\\', '/'))
-                .OrderBy(FrameNumber)
-                .ToList();
-        }
-
-        private static int FrameNumber(string path)
-        {
-            Match m = Regex.Match(Path.GetFileNameWithoutExtension(path), @"(\d+)$");
-            return m.Success ? int.Parse(m.Value) : 0;
+            return SpriteImport.FramePaths($"{root}/{folder}");
         }
 
         private static void ConfigurePixelSprite(string path, Vector2Int pivotPx, float ppu)
@@ -1032,57 +971,14 @@ namespace Brawler.Editor
                 return;
             }
 
-            LoadPixels(path, out int w, out int h);
-            ApplySprite(importer, new Vector2(pivotPx.x / (float)w, pivotPx.y / (float)h), ppu, FilterMode.Point);
+            SpriteImport.LoadPixels(path, out int w, out int h);
+            SpriteImport.ApplySprite(importer, new Vector2(pivotPx.x / (float)w, pivotPx.y / (float)h), ppu, FilterMode.Point);
         }
 
-        private static void ApplySprite(TextureImporter importer, Vector2 pivot, float ppu, FilterMode filter)
-        {
-            if (importer == null)
-            {
-                return;
-            }
-
-            importer.textureType = TextureImporterType.Sprite;
-            importer.spriteImportMode = SpriteImportMode.Single;
-            importer.spritePixelsPerUnit = ppu;
-            importer.filterMode = filter;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.mipmapEnabled = false;
-            importer.alphaIsTransparency = true;
-            importer.wrapMode = TextureWrapMode.Clamp;
-
-            var settings = new TextureImporterSettings();
-            importer.ReadTextureSettings(settings);
-            settings.spriteAlignment = (int)SpriteAlignment.Custom;
-            settings.spritePivot = pivot;
-            settings.spriteMeshType = SpriteMeshType.FullRect;
-            importer.SetTextureSettings(settings);
-            importer.SaveAndReimport();
-        }
-
-        /// <summary>Bounding box of non-transparent pixels (bottom-left origin). False if the block is empty.</summary>
         private static bool TryGetBounds(Color32[] pixels, int w, int h, out RectInt bounds)
         {
-            int minX = w, minY = h, maxX = -1, maxY = -1;
-            for (int y = 0; y < h; y++)
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    if (pixels[y * w + x].a < SolidAlpha)
-                    {
-                        continue;
-                    }
-
-                    minX = Mathf.Min(minX, x);
-                    maxX = Mathf.Max(maxX, x);
-                    minY = Mathf.Min(minY, y);
-                    maxY = Mathf.Max(maxY, y);
-                }
-            }
-
-            bounds = maxX < 0 ? default : new RectInt(minX, minY, maxX - minX + 1, maxY - minY + 1);
-            return maxX >= 0;
+            bounds = SpriteImport.Bounds(pixels, w, h, SolidAlpha);
+            return bounds.width > 0;
         }
 
         private static RectInt Encapsulate(RectInt a, RectInt b)
@@ -1103,31 +999,19 @@ namespace Brawler.Editor
             return block;
         }
 
-        private static Sprite LoadSprite(string path)
-        {
-            return AssetDatabase.LoadAssetAtPath<Sprite>(path);
-        }
-
         internal static T GetOrAdd<T>(GameObject go) where T : Component
         {
-            T component = go.GetComponent<T>();
-            return component != null ? component : Undo.AddComponent<T>(go);
+            return EditorUtil.GetOrAdd<T>(go);
         }
 
         internal static void SetArray(SerializedProperty property, params Object[] values)
         {
-            property.arraySize = values.Length;
-            for (int i = 0; i < values.Length; i++)
-            {
-                property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
-            }
+            EditorUtil.SetArray(property, values);
         }
 
         internal static GameObject CreateRoot(string name)
         {
-            var go = new GameObject(name);
-            Undo.RegisterCreatedObjectUndo(go, "Create " + name);
-            return go;
+            return EditorUtil.CreateRoot(name);
         }
     }
 }

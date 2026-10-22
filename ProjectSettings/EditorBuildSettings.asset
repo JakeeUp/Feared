@@ -15,4 +15,5 @@ EditorBuildSettings:
     path: Assets/_MyFiles/Scenes/TestArena.unity
     guid: bc02dff47d18dc9419adb19574217053
   m_configObjects:
+    com.unity.input.settings: {fileID: 11400000, guid: 158ba146181476944abb145b5dbe381b, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

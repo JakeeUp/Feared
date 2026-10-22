@@ -172,6 +172,9 @@ namespace Brawler.Player
         [Tooltip("Hitstop on a hook landing in an enemy (frames).")]
         [SerializeField, Min(0)] private int _chainHitStopFrames = 4;
 
+        [Tooltip("Seconds after a throw before the chain can be thrown again. Stops yank spam.")]
+        [SerializeField, Min(0f)] private float _chainCooldown = 0.45f;
+
         [Tooltip("Speed of a zip to a heavy target (units/s).")]
         [SerializeField, Min(1f)] private float _zipSpeed = 24f;
 
@@ -187,6 +190,12 @@ namespace Brawler.Player
 
         [Tooltip("Frames after the active frames before moving cancels the recovery on the ground (in the air: none).")]
         [SerializeField, Min(0)] private int _attackMoveCancelFrames = 4;
+
+        [Tooltip("Seconds after an attack ends before a fresh one can start. Combo links are not affected.")]
+        [SerializeField, Min(0f)] private float _attackRestartDelay = 0.12f;
+
+        [Tooltip("Seconds after a combo finisher before a fresh combo can start: the finisher commits you.")]
+        [SerializeField, Min(0f)] private float _comboFinisherRecovery = 0.32f;
 
         [Tooltip("Upward speed from a down slash that hits something (units/s): the pogo.")]
         [SerializeField, Min(0f)] private float _pogoVelocity = 11f;
@@ -362,6 +371,9 @@ namespace Brawler.Player
         /// <summary>Hitstop on a hook landing in an enemy (frames).</summary>
         public int ChainHitStopFrames => _chainHitStopFrames;
 
+        /// <summary>Seconds between chain throws.</summary>
+        public float ChainCooldown => _chainCooldown;
+
         /// <summary>Zip speed (units/s).</summary>
         public float ZipSpeed => _zipSpeed;
 
@@ -376,6 +388,12 @@ namespace Brawler.Player
 
         /// <summary>Frames after the active frames before moving cancels a ground attack's recovery.</summary>
         public int AttackMoveCancelFrames => _attackMoveCancelFrames;
+
+        /// <summary>Seconds after an attack before a fresh one can start.</summary>
+        public float AttackRestartDelay => _attackRestartDelay;
+
+        /// <summary>Seconds after a combo finisher before a fresh combo can start.</summary>
+        public float ComboFinisherRecovery => _comboFinisherRecovery;
 
         /// <summary>Bounce speed off a down slash hit (units/s).</summary>
         public float PogoVelocity => _pogoVelocity;

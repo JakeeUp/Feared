@@ -113,6 +113,20 @@ namespace Brawler.Tests
             Assert.IsTrue(_buffer.Peek(BufferedCommand.Attack, 1f));
         }
 
+        [Test]
+        public void EnqueueLatest_KeepsOnePressPerCommand()
+        {
+            _buffer.EnqueueLatest(BufferedCommand.Attack, 1f);
+            _buffer.Enqueue(BufferedCommand.Dash, 1.05f);
+            _buffer.EnqueueLatest(BufferedCommand.Attack, 1.1f);
+            _buffer.EnqueueLatest(BufferedCommand.Attack, 1.2f);
+
+            Assert.AreEqual(2, _buffer.Count);
+            Assert.IsTrue(_buffer.Peek(BufferedCommand.Dash, 1.2f), "Other commands are kept.");
+            Assert.IsTrue(_buffer.TryConsume(BufferedCommand.Attack, 1.4f), "The newest press is the one kept.");
+            Assert.IsFalse(_buffer.TryConsume(BufferedCommand.Attack, 1.4f));
+        }
+
         // ============ TryConsume: window ============
 
         [Test]

@@ -1,7 +1,7 @@
 {
     "name": "Brawler.Tests.EditMode",
     "rootNamespace": "Brawler.Tests",
-    "references": ["Brawler.Core", "Brawler.Combat", "Brawler.Player", "Brawler.Enemy", "Brawler.Progression", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
+    "references": ["Brawler.Core", "Brawler.Combat", "Brawler.Player", "Brawler.Enemy", "Brawler.Progression", "Brawler.Presentation", "Brawler.Level", "Unity.Cinemachine", "Unity.InputSystem", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

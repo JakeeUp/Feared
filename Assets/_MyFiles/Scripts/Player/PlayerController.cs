@@ -174,7 +174,7 @@ namespace Brawler.Player
         private void OnCommandPressed(BufferedCommand command)
         {
             // Scaled time: it stops during hitstop, so presses made in the freeze are still fresh afterwards.
-            _context.Buffer.Enqueue(command, Time.time);
+            _context.Buffer.EnqueueLatest(command, Time.time);
         }
 
         // ============ IDamageable ============
@@ -184,6 +184,12 @@ namespace Brawler.Player
         /// <returns>True if the hit connected.</returns>
         public bool TryApplyDamage(in DamageInfo info)
         {
+            // Already dead and waiting to respawn: no more hitstun, hitstop or shake.
+            if (_health != null && _health.IsDead)
+            {
+                return false;
+            }
+
             if (IsInvulnerable)
             {
                 return false;

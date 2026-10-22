@@ -23,6 +23,7 @@ namespace Brawler.Player
         private AttackData _attack;
         private bool _directional;
         private bool _pogoed;
+        private bool _finisher;
 
         // ============ Properties (read by presentation) ============
 
@@ -46,6 +47,7 @@ namespace Brawler.Player
                 : context.Combo != null ? context.Combo.GetAttack(context.ComboTracker.CurrentIndex) : null;
             context.PendingDirectionalAttack = null;
             _pogoed = false;
+            _finisher = !_directional && !context.ComboTracker.HasNext;
             if (_attack == null)
             {
                 context.ComboTracker.Reset();
@@ -164,6 +166,7 @@ namespace Brawler.Player
                 context.Hitbox.EndAttack();
             }
 
+            context.NextAttackTime = context.Time + (_finisher ? context.Movement.ComboFinisherRecovery : context.Movement.AttackRestartDelay);
             _attack = null;
         }
 

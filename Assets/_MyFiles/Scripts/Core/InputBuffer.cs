@@ -98,6 +98,34 @@ namespace Brawler.Core
         }
 
         /// <summary>
+        /// Records a press and drops any older stored press of the same command, so mashing holds one pending
+        /// press (with the newest timestamp) instead of queueing a burst that plays out back to back.
+        /// </summary>
+        /// <param name="command">Command pressed. <see cref="BufferedCommand.None"/> is ignored.</param>
+        /// <param name="time">Press timestamp in seconds.</param>
+        public void EnqueueLatest(BufferedCommand command, float time)
+        {
+            if (command == BufferedCommand.None)
+            {
+                return;
+            }
+
+            int kept = 0;
+            for (int i = 0; i < _count; i++)
+            {
+                Entry entry = _entries[(_head + i) % _entries.Length];
+                if (entry.Command != command)
+                {
+                    _entries[(_head + kept) % _entries.Length] = entry;
+                    kept++;
+                }
+            }
+
+            _count = kept;
+            Enqueue(command, time);
+        }
+
+        /// <summary>
         /// Consumes the OLDEST live entry matching <paramref name="command"/>. Other commands are untouched.
         /// </summary>
         /// <param name="command">Command to look for.</param>
